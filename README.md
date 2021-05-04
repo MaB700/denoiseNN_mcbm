@@ -1,1 +1,1 @@
-# autoencoder for mcbm RICH toymodel 
+# autoencoder for mcbm RICH sim data
