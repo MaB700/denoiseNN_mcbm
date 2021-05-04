@@ -1,1 +1,1 @@
-# autoencoder for mcbm RICH sim data
+# denoise NN for mcbm RICH sim data
