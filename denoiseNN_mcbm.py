@@ -19,7 +19,7 @@ from tensorflow.keras.layers import Input, Conv2D, Conv2DTranspose
 from tensorflow.keras.models import Sequential
 
 # load custom functions/loss/metrics
-from autoencoder_functions import *
+from denoiseNN_functions import *
 
 import wandb
 from wandb.keras import WandbCallback
@@ -31,32 +31,32 @@ print("GPU is", "available" if tf.config.list_physical_devices('GPU') else "NOT 
 # load dataset
 # header gives information of parameters
 # TODO: load parameters from file header
-nofEvents_train = 235
-nofEvents_test = 235
+nofEvents_train = 20000
+nofEvents_test = 3213
 cut_range = 20.0
 px_x = 32
 px_y = 72
 
-with open("E:/ML_data/mcbm_rich/train1/hits_all.txt", 'r') as temp_f:
+with open("E:/ML_data/mcbm_rich/28.07/hits_all.txt", 'r') as temp_f:
     col_count1 = [ len(l.split(",")) for l in temp_f.readlines() ]
 column_names1 = [i for i in range(0, max(col_count1))]
 
-with open("E:/ML_data/mcbm_rich/train1/hits_true.txt", 'r') as temp_f:
+with open("E:/ML_data/mcbm_rich/28.07/hits_true.txt", 'r') as temp_f:
     col_count2 = [ len(l.split(",")) for l in temp_f.readlines() ]
 column_names2 = [i for i in range(0, max(col_count2))]
 
-with open("E:/ML_data/mcbm_rich/train2/hits_all.txt", 'r') as temp_f:
+with open("E:/ML_data/mcbm_rich/28.07/hits_all_test.txt", 'r') as temp_f:
     col_count3 = [ len(l.split(",")) for l in temp_f.readlines() ]
 column_names3 = [i for i in range(0, max(col_count3))]
 
-with open("E:/ML_data/mcbm_rich/train1/hits_true.txt", 'r') as temp_f:
+with open("E:/ML_data/mcbm_rich/28.07/hits_true_test.txt", 'r') as temp_f:
     col_count4 = [ len(l.split(",")) for l in temp_f.readlines() ]
 column_names4 = [i for i in range(0, max(col_count4))]
 
-hits_all_train = pd.read_csv("E:/ML_data/mcbm_rich/train1/hits_all.txt",header=None ,index_col=0,comment='#', delimiter=",", names=column_names1).values.astype('int32')
-hits_true_train = pd.read_csv("E:/ML_data/mcbm_rich/train1/hits_true.txt",header=None ,index_col=0,comment='#', delimiter=",", names=column_names2).values.astype('int32')
-hits_all_test = pd.read_csv("E:/ML_data/mcbm_rich/train2/hits_all.txt",header=None ,index_col=0,comment='#', delimiter=",", names=column_names3).values.astype('int32')
-hits_true_test = pd.read_csv("E:/ML_data/mcbm_rich/train2/hits_true.txt",header=None ,index_col=0,comment='#', delimiter=",", names=column_names4).values.astype('int32')
+hits_all_train = pd.read_csv("E:/ML_data/mcbm_rich/28.07/hits_all.txt",header=None ,index_col=0,comment='#', delimiter=",", names=column_names1).values.astype('int32')
+hits_true_train = pd.read_csv("E:/ML_data/mcbm_rich/28.07/hits_true.txt",header=None ,index_col=0,comment='#', delimiter=",", names=column_names2).values.astype('int32')
+hits_all_test = pd.read_csv("E:/ML_data/mcbm_rich/28.07/hits_all_test.txt",header=None ,index_col=0,comment='#', delimiter=",", names=column_names3).values.astype('int32')
+hits_true_test = pd.read_csv("E:/ML_data/mcbm_rich/28.07/hits_true_test.txt",header=None ,index_col=0,comment='#', delimiter=",", names=column_names4).values.astype('int32')
 
 
 hits_all_train[hits_all_train < 0] = 0
@@ -107,11 +107,11 @@ test2 = tf.clip_by_value(test2, clip_value_min=0., clip_value_max=1.)
 #print(test2)
 #single_event_plot(test,test,px_x, -8.1, 13.1, px_y, -23.85, 23.85, 7, cut =0 )
 
-interactive_plot = widgets.interact(single_event_plot, \
+""" interactive_plot = widgets.interact(single_event_plot, \
                     data=fixed(test2), data0=fixed(test), \
                     nof_pixel_X=fixed(px_x), min_X=fixed(-13.1), max_X=fixed(8.1), \
                     nof_pixel_Y=fixed(px_y), min_Y=fixed(-23.85), max_Y=fixed(23.85), eventNo=(0,len(hits_all_test[:,0])-1,1), cut=(0.,0.90,0.05))
-
+ """
 # %%
 
 hits_all_train = tf.cast(train[..., tf.newaxis],dtype=tf.float32)
@@ -146,25 +146,26 @@ custom_metrics = [get_hit_average(), get_noise_average(), get_background_average
 model = Sequential()
 model.add(Input(shape=(72, 32, 1)))
 
-model.add(Conv2D(filters=128, kernel_size=5,activation='relu', padding='same'))
-model.add(Conv2D(filters=64, kernel_size=5, strides=[2, 2],activation='relu', padding='same'))
-model.add(Conv2D(filters=32, kernel_size=5, strides=[2, 2],activation='relu', padding='same'))
+model.add(Conv2D(filters=32, kernel_size=3, strides=2,activation='relu', padding='same'))
+model.add(Conv2D(filters=64, kernel_size=3, strides=[2, 2],activation='relu', padding='same'))
+model.add(Conv2D(filters=128, kernel_size=3, strides=[2, 2],activation='relu', padding='same'))
 
-model.add(Conv2DTranspose(filters=32 , kernel_size=5, strides=[2, 2],activation='relu', padding='same'))
-model.add(Conv2DTranspose(filters=64 , kernel_size=5, strides=[2, 2],activation='relu', padding='same'))
-model.add(Conv2DTranspose(filters=128 , kernel_size=5, activation='relu', padding='same'))
-model.add(Conv2D(1, kernel_size=5, activation='tanh', padding='same'))
+model.add(Conv2DTranspose(filters=128 , kernel_size=3, strides=[2, 2],activation='relu', padding='same'))
+model.add(Conv2DTranspose(filters=64 , kernel_size=3, strides=[2, 2],activation='relu', padding='same'))
+model.add(Conv2DTranspose(filters=32 , kernel_size=3, strides=2,activation='relu', padding='same'))
+model.add(Conv2D(1, kernel_size=3, activation='tanh', padding='same'))
+#model.add(Conv2D(1, kernel_size=1, activation=''))
 model.summary()
 #opt = tf.keras.optimizers.Adadelta(lr=0.1, rho=0.95, epsilon=1e-07 )
 opt = tf.keras.optimizers.Adam(learning_rate=0.001)
 model.compile(optimizer=opt, loss=get_custom_loss(), metrics=custom_metrics, experimental_steps_per_execution=10)
-es = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5)
+es = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=3, mode='min')
 model.fit(hits_all_train, hits_train,
-                epochs=200,
-                batch_size=30,
+                epochs=50,
+                batch_size=300,
                 shuffle=True,
                 validation_data=(hits_all_test, hits_test),
-                callbacks=[es])#,
+                callbacks=[])#,
                 #callbacks=[WandbCallback(log_weights=True)])
 #print('model evaluate ...\n')
 #model.evaluate(hits_noise_test, hits_test, verbose=1)
@@ -174,11 +175,11 @@ encoded = model.predict(hits_all_test, batch_size=50)
 
 # # single_event_plot(hits_noise_train, 48, -20.0, 20.0, 48, -20.0, 20.0, 0)
 
-
+# %%
 interactive_plot = widgets.interact(single_event_plot, \
                     data=fixed(tf.squeeze(encoded,[3])), data0=fixed(2*hits_test[:,:,:,1]+hits_test[:,:,:,0]), \
-                    nof_pixel_X=fixed(px_x), min_X=fixed(-13.1), max_X=fixed(8.1), \
-                    nof_pixel_Y=fixed(px_y), min_Y=fixed(-23.85), max_Y=fixed(23.85), eventNo=(0,50-1,1), cut=(0.,0.90,0.05))
+                    nof_pixel_X=fixed(px_x), min_X=fixed(-8.1), max_X=fixed(13.1), \
+                    nof_pixel_Y=fixed(px_y), min_Y=fixed(-23.85), max_Y=fixed(23.85), eventNo=(50,100-1,1), cut=(0.,0.90,0.05))
 
 
 

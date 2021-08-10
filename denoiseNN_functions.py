@@ -81,7 +81,7 @@ def get_custom_loss():
     @tf.autograph.experimental.do_not_convert
     def custom_loss(data, y_pred):
         y_true = data[:,:,:,0]
-        return losses.mean_squared_error(y_true, y_pred[:,:,:,0])
+        return losses.mean_squared_error(y_true, y_pred[:,:,:,0]) 
     return custom_loss
 
 def single_event_plot(data, data0, nof_pixel_X, min_X, max_X, nof_pixel_Y, min_Y, max_Y, eventNo, cut=0.):
