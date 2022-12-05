@@ -1,6 +1,25 @@
 import numpy as np
+import tensorflow as tf
+from tensorflow.keras import backend as K
 from sklearn.metrics import roc_auc_score, confusion_matrix, roc_curve
 import wandb
+
+def get_hit_average():
+    @tf.autograph.experimental.do_not_convert
+    def hit_average(data, y_pred):
+        y_true = data[:,:,:,0]
+        nofHits = tf.math.count_nonzero(tf.greater(y_true,0.01), dtype=tf.float32)
+        return (K.sum(y_true*y_pred[:,:,:,0])/nofHits)
+    return hit_average   
+
+def hit_average(y_true, y_pred):    
+    nofHits = tf.math.count_nonzero(tf.greater(y_true,0.01), dtype=tf.float32)
+    return (K.sum(y_true[:,:,:,0]*y_pred[:,:,:,0])/nofHits)   
+
+def noise_average(y_true, y_pred, x):
+    noise_mask = tf.subtract(tf.cast(tf.greater(x[:,:,:,0], 0.01), tf.float32), y_true[:,:,:,0])
+    nofNoise = tf.math.count_nonzero(tf.greater(noise_mask, 0.01), dtype=tf.float32)
+    return (K.sum(noise_mask*y_pred[:,:,:,0])/nofNoise)
 
 class LogWandb():
     def __init__(self, gt, pred):

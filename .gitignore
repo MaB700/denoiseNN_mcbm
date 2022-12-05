@@ -1,2 +1,7 @@
 .vscode/settings.json
 __pycache__
+wandb/
+*.onnx
+*.h5
+*.csv
+*.prof

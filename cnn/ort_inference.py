@@ -10,6 +10,8 @@ input = pd.read_csv('./in_mixed.csv', header=None, delimiter= ",", nrows=100).va
 keras_output = pd.read_csv('./out_mixed.csv', header=None, delimiter= ",", nrows=100).values.astype(np.float32)
 
 sess = ort.InferenceSession('./mixed.onnx')
+sess.get_providers()
+sess.set_providers(['CPUExecutionProvider'])
 
 input_name = sess.get_inputs()[0].name
 input_shape = sess.get_inputs()[0].shape
@@ -21,10 +23,12 @@ keras_output = keras_output.reshape([100, 72, 32, 1])
 # start = time.process_time()
 pr = cProfile.Profile()
 pr.enable()
-
+ort_inf = np.empty((100, 72, 32, 1))
 for i in range(100):
-    ort_inf = sess.run(None, {input_name: input})[0]
-
+    input_i = input[i][tf.newaxis, ...]
+    ort_inf[i] = sess.run(None, {input_name: input_i})[0]
+    
+print(ort_inf.shape)
 pr.disable()
 s = io.StringIO()
 sortby = SortKey.CUMULATIVE
@@ -36,19 +40,8 @@ print(s.getvalue())
 
 # delta_t = time.process_time() - start
 # print(delta_t)
+hit_indices = input > 0.01
+np.testing.assert_allclose(ort_inf[hit_indices], keras_output[hit_indices], atol=1e-7, rtol=1e-5, verbose=True)
 
-avg_absolute = np.average(np.abs(np.subtract(keras_output, ort_inf)))
-avg_relative = np.average(np.abs(np.divide(np.subtract(keras_output, ort_inf), keras_output)))
-print('Average absolut deviation: {}'.format(avg_absolute))
-print('Average relative deviation: {}'.format(avg_relative))
-
-max_absolute = np.amax(np.abs(np.subtract(keras_output, ort_inf)))
-max_relative = np.amax(np.abs(np.divide(np.subtract(keras_output, ort_inf), keras_output)))
-print('Max. absolut deviation: {}'.format(max_absolute))
-print('Max. relative deviation: {}'.format(max_relative))
-
-hit_indices = input > 0.01 # smalles values is always 1/26 ~ 0.0385
-max_hit_absolute = np.amax(np.abs(np.subtract(keras_output[hit_indices], ort_inf[hit_indices])))
-max_hit_relative = np.amax(np.abs(np.divide(np.subtract(keras_output[hit_indices], ort_inf[hit_indices]), keras_output[hit_indices])))
-print('Max. absolut deviation hits: {}'.format(max_hit_absolute))
-print('Max. relative deviation hits: {}'.format(max_hit_relative))
+# for i in range(10):
+#     print('keras: {}  ort: {}'.format(keras_output[hit_indices][i], ort_inf[hit_indices][i]))
