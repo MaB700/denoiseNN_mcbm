@@ -1,35 +1,17 @@
 # %%
-import torch_geometric
 import numpy as np
-import networkx as nx
 import time
 import torch
 import torch.nn.functional as F
 from torch_geometric.loader import DataLoader
-from torch_geometric.utils.convert import to_networkx
-
-from sklearn.metrics import roc_auc_score, confusion_matrix
 
 from helpers import *
-from wandb_log import *
-import cProfile, pstats, io
-from pstats import SortKey
 import wandb
 wandb.init(entity="mabeyer", project="mrich_denoise") # , mode='disabled'
 # %%
 batch_size = 512
 epochs = 500
 es_patience = 5
-# pr = cProfile.Profile()
-# pr.enable()
-# pr.disable()
-# s = io.StringIO()
-# sortby = SortKey.CUMULATIVE
-# ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-# #ps.print_stats()
-# filename = 'profile.prof'
-# pr.dump_stats(filename)
-# print(s.getvalue())
 
 data = CreateGraphDataset("../TMVA_mcbm/data.root:train", 0)
 np.random.seed(123)

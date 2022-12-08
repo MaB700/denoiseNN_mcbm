@@ -6,8 +6,8 @@ import uproot
 from sklearn.model_selection import train_test_split
 
 import tensorflow as tf
-from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
-from tensorflow.keras import optimizers
+from tensorflow.python.keras.callbacks import EarlyStopping, ModelCheckpoint
+from tensorflow.python.keras import optimizers
 gpus = tf.config.experimental.list_physical_devices('GPU')
 if gpus:
     try:
@@ -27,7 +27,7 @@ import networks
 
 import wandb
 from wandb.keras import WandbCallback
-wandb.init(entity="mabeyer", project="ort") # , mode="disabled"
+wandb.init(entity="mabeyer", project="ort", mode="disabled") # 
 
 # %%
 train_events = 10000 # None for all events
