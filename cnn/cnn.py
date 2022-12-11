@@ -7,7 +7,6 @@ from sklearn.model_selection import train_test_split
 
 import tensorflow as tf
 from tensorflow.python.keras.callbacks import EarlyStopping, ModelCheckpoint
-from tensorflow.python.keras import optimizers
 gpus = tf.config.experimental.list_physical_devices('GPU')
 if gpus:
     try:
@@ -30,11 +29,11 @@ from wandb.keras import WandbCallback
 wandb.init(entity="mabeyer", project="ort", mode="disabled") # 
 
 # %%
-train_events = 10000 # None for all events
+train_events = None # None for all events
 test_events = 10000
 
 x, y = None, None
-with uproot.open("E:/git/TMVA_mcbm/data.root") as file:
+with uproot.open("../data.root") as file:
     x = np.reshape(np.array(file["train"]["time"].array(entry_stop=train_events)), (-1, 72, 32, 1))
     y = np.reshape(np.array(file["train"]["tar"].array(entry_stop=train_events)), (-1, 72, 32, 1))
 
@@ -44,7 +43,7 @@ x, x_val, y, y_val = train_test_split(x, y, test_size=0.2)
 model = networks.Stacked()
 model.summary()
 
-opt = optimizers.Adam(learning_rate=0.001)
+opt = tf.keras.optimizers.Adam(learning_rate=0.001)
 es = EarlyStopping(monitor='val_loss', min_delta=0, patience=5, mode='min')
 cp_save = ModelCheckpoint('model.h5', save_best_only=True, monitor='val_loss', mode='min', verbose=1)
 
@@ -52,7 +51,7 @@ model.compile(optimizer=opt, loss='bce', metrics=[helpers.get_hit_average()])
 
 model.fit(  x=x, y=y,
             batch_size=128,
-            epochs=1,
+            epochs=200,
             validation_data=(x_val, y_val),
             callbacks=[es, cp_save, WandbCallback()])
 
@@ -71,7 +70,7 @@ del x, y
 
 x_test = None
 y_test = None
-with uproot.open("E:/git/TMVA_mcbm/data_test.root") as file:
+with uproot.open("../data_test.root") as file:
     x_test = np.reshape(np.array(file["train"]["time"].array(entry_stop=test_events)), (-1, 72, 32, 1))
     y_test = np.reshape(np.array(file["train"]["tar"].array(entry_stop=test_events)), (-1, 72, 32, 1))
 

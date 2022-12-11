@@ -9,9 +9,10 @@ import onnxruntime as ort
 input = pd.read_csv('./in_mixed.csv', header=None, delimiter= ",", nrows=100).values.astype(np.float32)
 keras_output = pd.read_csv('./out_mixed.csv', header=None, delimiter= ",", nrows=100).values.astype(np.float32)
 
-sess = ort.InferenceSession('./mixed.onnx')
-sess.get_providers()
-sess.set_providers(['CPUExecutionProvider'])
+options = ort.SessionOptions()
+# options.enable_profiling=True
+# options.execution_mode.ORT_PARALLEL
+sess = ort.InferenceSession('./mixed.onnx', providers=['CPUExecutionProvider'], sess_options=options)
 
 input_name = sess.get_inputs()[0].name
 input_shape = sess.get_inputs()[0].shape
@@ -39,9 +40,11 @@ pr.dump_stats(filename)
 print(s.getvalue())
 
 # delta_t = time.process_time() - start
-# print(delta_t)
+# print('time in s: {}'.format(delta_t/100))
+
+# np.testing.assert_allclose(ort_inf, keras_output, atol=3e-7, rtol=1e-5, verbose=True)
 hit_indices = input > 0.01
 np.testing.assert_allclose(ort_inf[hit_indices], keras_output[hit_indices], atol=1e-7, rtol=1e-5, verbose=True)
 
-# for i in range(10):
-#     print('keras: {}  ort: {}'.format(keras_output[hit_indices][i], ort_inf[hit_indices][i]))
+for i in range(10):
+    print('keras: {}  ort: {}'.format(keras_output[hit_indices][i], ort_inf[hit_indices][i]))

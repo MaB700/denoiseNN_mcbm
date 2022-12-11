@@ -7,13 +7,13 @@ from torch_geometric.loader import DataLoader
 
 from helpers import *
 import wandb
-wandb.init(entity="mabeyer", project="mrich_denoise") # , mode='disabled'
+wandb.init(entity="mabeyer", project="mrich_denoise", mode='disabled') # 
 # %%
-batch_size = 512
+batch_size = 128
 epochs = 500
 es_patience = 5
 
-data = CreateGraphDataset("../TMVA_mcbm/data.root:train", 0)
+data = CreateGraphDataset("../data.root:train", 0)
 np.random.seed(123)
 idxs = np.random.permutation(len(data))
 idx_train, idx_val, idx_test = np.split(idxs, [int(0.6 * len(data)), int(0.99 * len(data))])
@@ -93,7 +93,7 @@ del data, train_loader, val_loader
 model.load_state_dict(torch.load('model_best.pt'))
 model.eval()
 
-test_data = CreateGraphDataset("../TMVA_mcbm/data_test.root:train", 0)
+test_data = CreateGraphDataset("../data_test.root:train", 0)
 test_loader = DataLoader(test_data, batch_size=batch_size)
 test_gt, test_pred = predict(test_loader)
 LogWandb(test_gt, test_pred)

@@ -5,3 +5,5 @@ wandb/
 *.h5
 *.csv
 *.prof
+*.root
+*.pt
