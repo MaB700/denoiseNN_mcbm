@@ -10,10 +10,10 @@ import wandb
 wandb.init(entity="mabeyer", project="mrich_denoise", mode='disabled') # 
 # %%
 batch_size = 128
-epochs = 500
+epochs = 1
 es_patience = 5
 
-data = CreateGraphDataset("../data.root:train", 0)
+data = CreateGraphDataset("../data.root:train", 10000)
 np.random.seed(123)
 idxs = np.random.permutation(len(data))
 idx_train, idx_val, idx_test = np.split(idxs, [int(0.6 * len(data)), int(0.99 * len(data))])
@@ -22,7 +22,7 @@ train_loader = DataLoader([data[index] for index in idx_train], batch_size=batch
 val_loader = DataLoader([data[index] for index in idx_val], batch_size=batch_size)
 # %%
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = Net(data[0], 32).to(device) # .float() # pass data[0] to get node/edge_feature amount
+model = TestNet(data[0], 8).to(device) # .float() # pass data[0] to get node/edge_feature amount
 model = model.to(torch.float)
 print(model)
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
@@ -90,44 +90,44 @@ def predict(loader):
 datax = data[0]
 del data, train_loader, val_loader
 
-model.load_state_dict(torch.load('model_best.pt'))
-model.eval()
+# model.load_state_dict(torch.load('model_best.pt'))
+# model.eval()
 
-test_data = CreateGraphDataset("../data_test.root:train", 0)
-test_loader = DataLoader(test_data, batch_size=batch_size)
-test_gt, test_pred = predict(test_loader)
-LogWandb(test_gt, test_pred)
+# test_data = CreateGraphDataset("../data_test.root:train", 0)
+# test_loader = DataLoader(test_data, batch_size=batch_size)
+# test_gt, test_pred = predict(test_loader)
+# LogWandb(test_gt, test_pred)
 
-def meanSigma(data):
-    n = len(data)
-    mean = sum(data)/n
-    dev = [(x - mean)**2 for x in data]
-    sigma = math.sqrt(sum(dev)/n)
-    return mean*1e3, sigma*1e3
+# def meanSigma(data):
+#     n = len(data)
+#     mean = sum(data)/n
+#     dev = [(x - mean)**2 for x in data]
+#     sigma = math.sqrt(sum(dev)/n)
+#     return mean*1e3, sigma*1e3
 
-test_loader_single = DataLoader(test_data[0:1000], batch_size=1)
+# test_loader_single = DataLoader(test_data[0:1000], batch_size=1)
 
-def predict_timed(loader, device_timed):
-    model.eval()
-    times = []
-    for data in loader :
-        data = data.to(device_timed)
-        start = time.process_time()
-        pred = model(data)
-        stop = time.process_time() - start
-        times.append(stop)
+# def predict_timed(loader, device_timed):
+#     model.eval()
+#     times = []
+#     for data in loader :
+#         data = data.to(device_timed)
+#         start = time.process_time()
+#         pred = model(data)
+#         stop = time.process_time() - start
+#         times.append(stop)
     
-    return times
+#     return times
 
-model = Net(datax, 32).to(torch.device('cpu')) # .float() # pass data[0] to get node/edge_feature amount
-model = model.to(torch.float)
-model.load_state_dict(torch.load('model_best.pt'))
-model.eval()
+# model = Net(datax, 32).to(torch.device('cpu')) # .float() # pass data[0] to get node/edge_feature amount
+# model = model.to(torch.float)
+# model.load_state_dict(torch.load('model_best.pt'))
+# model.eval()
 
-t_cpu = predict_timed(test_loader_single, torch.device('cpu'))
-mean_cpu, sigma_cpu = meanSigma(t_cpu)
-wandb.log({"cpu_time_xmean": mean_cpu})
-wandb.log({"cpu_time_xsigma": sigma_cpu})
+# t_cpu = predict_timed(test_loader_single, torch.device('cpu'))
+# mean_cpu, sigma_cpu = meanSigma(t_cpu)
+# wandb.log({"cpu_time_xmean": mean_cpu})
+# wandb.log({"cpu_time_xsigma": sigma_cpu})
 
 # t_cuda = predict_timed(test_loader_single, torch.device('cuda'))
 # mean_cuda, sigma_cuda = meanSigma(t_cuda)

@@ -7,6 +7,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.data.data import Data
+from torch.nn import Sequential, Linear, ReLU, ModuleList, Sigmoid
+from torch_geometric.nn import MessagePassing, MetaLayer, LayerNorm
+from torch_scatter import scatter_mean, scatter_sum, scatter_max, scatter_min, scatter_add
 from torch_geometric.nn import GCNConv, ARMAConv, GENConv, GeneralConv, global_mean_pool
 import torch_geometric.nn as geonn
 import uproot
@@ -102,6 +105,78 @@ class Net(torch.nn.Module):
         x = F.relu(self.conv2(x, edge_index, edge_attr))
         x = F.relu(self.conv3(x, edge_index, edge_attr))
         return torch.sigmoid(self.conv4(x, edge_index, edge_attr))
+
+class EdgeModel(torch.nn.Module):
+    def __init__(self, node_in, node_out, edge_in, edge_out, hid_channels, residuals=True):
+        super().__init__()
+
+        self.residuals = residuals
+
+        layers = [Linear(node_in*2 + edge_in, hid_channels),
+                  ReLU(),
+                  Linear(hid_channels, edge_out)]
+
+        self.edge_mlp = Sequential(*layers)
+        self.double()
+
+    def forward(self, src, dest, edge_attr, u, batch):
+        out = torch.cat([src, dest, edge_attr], dim=1)
+        out = self.edge_mlp(out)
+        if self.residuals:
+            out += edge_attr
+        return out
+
+class NodeModel(torch.nn.Module):
+    def __init__(self, node_in, node_out, edge_in, edge_out, hid_channels, residuals=True):
+        super().__init__()
+
+        self.residuals = residuals
+
+        layers = [Linear(node_in + edge_out, hid_channels),
+                  ReLU(),
+                  Linear(hid_channels, node_out)]
+
+        self.node_mlp = Sequential(*layers)
+        self.double()
+
+    def forward(self, x, edge_index, edge_attr, u, batch):
+        row, col = edge_index
+        out = edge_attr
+
+        out1 = scatter_add(out, col, dim=0, dim_size=x.size(0))
+        out = torch.cat([x, out1], dim=1)
+
+        out = self.node_mlp(out)
+        if self.residuals:
+            out += x
+        return torch.sigmoid(out)
+
+class TestNet(torch.nn.Module):
+    def __init__(self, data, hidden_nodes):
+        super(TestNet, self).__init__()
+
+        self.node_in = data.x.size(-1) # node features
+        self.edge_in = data.edge_attr.size(-1) # edge features
+        self.hidden_nodes = hidden_nodes
+        node_out = self.hidden_nodes
+        edge_out = self.hidden_nodes
+        lin_nodes = self.hidden_nodes
+
+        layers = []
+
+        layer = MetaLayer(node_model=NodeModel(self.node_in, 1, None, edge_out, lin_nodes, residuals=False), 
+        edge_model=EdgeModel(self.node_in, None, self.edge_in, edge_out, lin_nodes, residuals=False))
+
+        layers.append(layer)
+        self.layers = ModuleList(layers)
+
+    def forward(self, x, edge_index, edge_attr):#data FIXME:
+        #x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
+        for layer in self.layers:
+            x, edge_attr, _ = layer(x, edge_index, edge_attr, None)#, data.batch  
+
+        return x
+
 
 class LogWandb():
     def __init__(self, gt, pred):

@@ -10,14 +10,14 @@ import time
 import cProfile, pstats, io
 from pstats import SortKey
 from sklearn.metrics import roc_auc_score, confusion_matrix
-
+import onnxruntime
 from helpers import *
 
-data = CreateGraphDataset("../TMVA_mcbm/data.root:train", 1000)
+data = CreateGraphDataset("../data.root:train", 1000)
 pred_loader = DataLoader(data, batch_size=1)
 
 device = torch.device('cpu')
-model = Net(data[0], 32).to(device)
+model = TestNet(data[0], 8).to(device)
 model = model.to(torch.float)
 model.load_state_dict(torch.load('model_best.pt', map_location=device))
 model.eval()
@@ -34,6 +34,8 @@ def predict(loader):
         data = data.to(device)
         #start = time.time()
         pred = model(data).cpu().detach().numpy()
+        print(pred)
+        break
         #end = time.time()
         #print(end - start)
         #target = data.y.cpu().detach().numpy()
@@ -54,9 +56,9 @@ def predict(loader):
 # pr.dump_stats(filename)
 # print(s.getvalue())
 example_data = data[0]
-input_data = (  example_data.x.detach().cuda(), 
-                example_data.edge_index.detach().cuda(), 
-                example_data.edge_attr.detach().cuda())
+input_data = (  example_data.x.detach(), 
+                example_data.edge_index.detach(), 
+                example_data.edge_attr.detach())
 print(input_data[0].grad)
 print(input_data[1].grad)
 print(input_data[2].grad)
@@ -64,5 +66,10 @@ print(input_data[2].grad)
 # #     param.cpu().detach()
 
 dynamic_axes = {'nodes': {0: 'num_nodes'}, 'edge_index': {1: 'index_num_edges'}, "edge_attr": {0: 'atrr_num_edges'}}
-torch.onnx.export(model, input_data, 'gnn.onnx', input_names=["nodes", "edge_index", "edge_attr"], output_names=["output"], export_params=True, dynamic_axes=dynamic_axes)
+torch.onnx.export(model, input_data, 'gnn.onnx', input_names=["nodes", "edge_index", "edge_attr"], output_names=["output"], export_params=True, dynamic_axes=dynamic_axes, opset_version=16, verbose=True)
+
+print(model(input_data[0], input_data[1], input_data[2]))
+sess = onnxruntime.InferenceSession('./gnn.onnx', None)
+out_ort = sess.run(None, {'nodes': input_data[0].numpy(), 'edge_index': input_data[1].numpy(), 'edge_attr': input_data[2].numpy()})
+print(out_ort)
 # %%
