@@ -13,6 +13,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # print pytorch version
 print(torch.__version__)
+# model to .onnx works properly with pytorch 1.13
 
 def make_mlp(
     input_size,

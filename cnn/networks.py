@@ -1,6 +1,16 @@
+import tensorflow as tf
+from tensorflow.keras import backend as K
 from tensorflow.keras import Model
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Input, InputLayer, Conv2D, Conv2DTranspose, BatchNormalization, MaxPooling2D, UpSampling2D, concatenate
+from tensorflow.python.framework import ops
+from tensorflow.python.ops import math_ops
+# import tensorflow._api.v2.compat.v1 as tf
+
+# tf.disable_v2_behavior()
+from tensorflow.python.framework.ops import disable_eager_execution
+
+disable_eager_execution()
 
 def Stacked():
     model = Sequential()
@@ -14,10 +24,32 @@ def Stacked():
     model.add(Conv2D(filters=1, kernel_size=3, padding='same', activation='sigmoid'))
     return model
 
-def UNet(use_residuals = True):
-    inputs = Input((72, 32, 1))
+def custom_loss(i):
+    i = ops.convert_to_tensor_v2_with_dispatch(i)
+    mask = K.greater(i, 0.01)
+    def loss(y_true, y_pred):
+        y_pred = ops.convert_to_tensor_v2_with_dispatch(y_pred)
+        y_true = math_ops.cast(y_true, y_pred.dtype)
+        return K.mean(K.binary_crossentropy(y_true[mask], y_pred[mask]), axis=-1)
+    return loss
 
-    c1 = Conv2D(16, (3, 3), activation='relu', padding='same') (inputs)
+def Stacked2():
+    i = Input((72, 32, 1))
+    c1 = Conv2D(8, (5, 5), activation='relu', padding='same') (i)
+    c2 = Conv2D(16, (5, 5), activation='relu', padding='same') (c1)
+    c3 = Conv2D(32, (5, 5), activation='relu', padding='same') (c2)
+    c4 = Conv2D(32, (3, 3), activation='relu', padding='same') (c3)
+    c5 = Conv2D(32, (3, 3), activation='relu', padding='same') (c4)
+    c6 = Conv2D(32, (3, 3), activation='relu', padding='same') (c5)
+    o = Conv2D(1, (3, 3), activation='sigmoid', padding='same') (c6)
+    model = Model(i, o)
+    model.compile(optimizer='adam', loss=custom_loss(i), metrics=['accuracy'], experimental_run_tf_function=False)
+    return model
+
+def UNet(use_residuals = True):
+    i = Input((72, 32, 1))
+
+    c1 = Conv2D(16, (3, 3), activation='relu', padding='same') (i)
     c1 = BatchNormalization()(c1)
     p1 = MaxPooling2D((2, 2)) (c1)
 
@@ -43,9 +75,12 @@ def UNet(use_residuals = True):
     u12 = Conv2DTranspose(32, (3, 3), strides=(2, 2), padding='same') (u11)
     c12 = concatenate([u12, c1], axis=3) if use_residuals else u12
 
-    u12 = Conv2D(16, (3, 3), activation='relu', padding='same') (u12)
-    outputs = Conv2D(1, (3, 3), activation='sigmoid', padding='same') (u12)
-    return Model(inputs=[inputs], outputs=[outputs])
+    u13 = Conv2D(16, (3, 3), activation='relu', padding='same') (c12)
+    c13 = concatenate([u13, i], axis=3) if use_residuals else u13
+    o = Conv2D(1, (3, 3), activation='sigmoid', padding='same') (c13)
+    model = Model(i, o)
+    model.compile(optimizer='adam', loss=custom_loss(i), metrics=['accuracy'], experimental_run_tf_function=False)
+    return model
 
 def Autoencoder():
     model = Sequential()
