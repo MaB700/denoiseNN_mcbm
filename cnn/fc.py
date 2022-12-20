@@ -1,10 +1,7 @@
-import tensorflow as tf
+# import tensorflow as tf
 import numpy as np
-from tensorflow.keras import backend as K
-from tensorflow.keras import Model
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Input, Dense, InputLayer
-from tensorflow.python.framework import ops
+from keras.models import Sequential
+from keras.layers import Dense, InputLayer
 
 
 import wandb

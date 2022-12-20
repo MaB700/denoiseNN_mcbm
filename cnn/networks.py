@@ -46,6 +46,13 @@ def Stacked2():
     model.compile(optimizer='adam', loss=custom_loss(i), metrics=['accuracy'], experimental_run_tf_function=False)
     return model
 
+def TestNet():
+    i = Input((72, 32, 1))
+    # do pointwise convolution
+    c1 = Conv2D(8, (1, 1), activation='relu', padding='same') (i)
+    # do depthwise convolution
+    c2 = Conv2D(8, (5, 5), activation='relu', padding='same', use_bias=False, depthwise_regularizer='l2') (c1)
+
 def UNet(use_residuals = True):
     i = Input((72, 32, 1))
 

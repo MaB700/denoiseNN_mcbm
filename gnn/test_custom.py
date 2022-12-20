@@ -132,6 +132,9 @@ class ResAGNN(nn.Module):
         return self.edge_network(clf_inputs).squeeze(-1)
 
 hparams = torch.load("hyper_parameters.ckpt")
+hparams.update({"n_graph_iters": 3})
+# print content of .ckpt file
+print(hparams)
 model = ResAGNN(hparams)
 print(model)
 
@@ -156,13 +159,13 @@ torch.onnx.export(model, input_data, ONNX_FILE_PATH, input_names=["nodes", "edge
 expected = model(*input_data)
 expected2 = model(*input_data2)
 expected3 = model(*input_data3)
-print(expected2)
+print(expected3)
 
 session = onnxruntime.InferenceSession(ONNX_FILE_PATH, None)
 out = session.run(None, {"nodes": input_data[0].numpy(), "edge_index": input_data[1].numpy()})[0]
 out2 = session.run(None, {"nodes": input_data2[0].numpy(), "edge_index": input_data2[1].numpy()})[0]
-print(out2)
 out3 = session.run(None, {"nodes": input_data3[0].numpy(), "edge_index": input_data3[1].numpy()})[0]
+print(out3)
 # measure the average time of inference in 1000 times in ms
 import time
 start = time.time()
