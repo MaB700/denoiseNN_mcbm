@@ -1,5 +1,5 @@
 import torch
-from torch.nn import Conv2d, ConvTranspose2d
+from torch.nn import Conv2d, ConvTranspose2d, Linear
 
 conv = Conv2d(in_channels=1, out_channels=32, kernel_size=3)
 params = sum(p.numel() for p in conv.parameters() if p.requires_grad)
@@ -88,36 +88,57 @@ x = torch.rand(1, 1, 72, 32)
 flops = FlopCountAnalysis(model, x)
 print(f"OutlierNet uses {flops.total():,} flops.")
 
+# lin1 = Linear(3, 1)
+# lin2 = Linear(10, 1)
+# x = torch.rand(1, 3)
+# model = torch.nn.Sequential(lin1)
+# params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+# print(f"The model uses {params} parameters.")
+# flops = FlopCountAnalysis(model, x)
+# print(f"The model uses {flops.total():,} flops.")
+
 # save model to onnx and test inference time with onnxruntime
 import onnx
 import onnxruntime as ort
 import cProfile, pstats, io
 from pstats import SortKey
+import time
 
-x = torch.rand(32, 1, 72, 32)
+# x = torch.rand(1, 3)
+x = torch.rand(1, 1, 72, 32)
 torch.onnx.export(model, x, "outliernet.onnx", input_names=["input"], output_names=["output"])
 onnx_model = onnx.load("outliernet.onnx")
 onnx.checker.check_model(onnx_model)
 options = ort.SessionOptions()
 options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-options.add_session_config_entry("session.set_denormal_as_zero", "1")
-options.execution_mode.ORT_PARALLEL
-ort_session = ort.InferenceSession("outliernet.onnx")
+# options.add_session_config_entry("session.set_denormal_as_zero", "1")
+# options.execution_mode.ORT_PARALLEL
+# options.add_session_config_entry("session.intra_op.allow_spinning", "0")
+options.enable_profiling = True
+options.intra_op_num_threads = 1
+ort_session = ort.InferenceSession("outliernet.onnx", options)
 input_name = ort_session.get_inputs()[0].name
 output_name = ort_session.get_outputs()[0].name
 x = x.numpy()
-pr = cProfile.Profile()
-pr.enable()
-for i in range(10000):
-    ort_session.run([output_name], {input_name: x})
-# print(f"OutlierNet inference time: {(end - start)/ 10000 *1000} ms")
-pr.disable()
-s = io.StringIO()
-sortby = SortKey.CUMULATIVE
-ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-ps.print_stats()
-filename = 'profile.prof'
-pr.dump_stats(filename)
-print(s.getvalue())
-t = ps.get_stats_profile().func_profiles['run'].cumtime / 10000 * 1000 #time in mikro seconds
-print(f'Average time per run: {t:.5f} ms')
+# pr = cProfile.Profile()
+# pr.enable()
+#for i in range(10000):
+start = time.time()
+ort_session.run([output_name], {input_name: x})
+ort_session.run([output_name], {input_name: x})
+ort_session.run([output_name], {input_name: x})
+ort_session.run([output_name], {input_name: x})
+ort_session.run([output_name], {input_name: x})
+end = time.time()
+print(f"Lin inference time: {(end - start)/ 4 *1000} ms")
+
+# pr.disable()
+# s = io.StringIO()
+# sortby = SortKey.CUMULATIVE
+# ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+# ps.print_stats()
+# filename = 'profile.prof'
+# pr.dump_stats(filename)
+# print(s.getvalue())
+# t = ps.get_stats_profile().func_profiles['run'].cumtime / 10000 * 1000 #time in ms
+# print(f'Average time per run: {t:.5f} ms')
