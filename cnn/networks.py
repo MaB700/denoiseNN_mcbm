@@ -85,7 +85,7 @@ def UNet(use_residuals = True):
     u13 = Conv2D(16, (3, 3), activation='relu', padding='same') (c12)
     c13 = concatenate([u13, i], axis=3) if use_residuals else u13
     o = Conv2D(1, (3, 3), activation='sigmoid', padding='same') (c13)
-    model = Model(i, o)
+    model = Model(i, o) #custom_loss(i)
     model.compile(optimizer='adam', loss=custom_loss(i), metrics=['accuracy'], experimental_run_tf_function=False)
     return model
 

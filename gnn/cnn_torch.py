@@ -1,5 +1,7 @@
+import numpy as np
 import torch
 from torch.nn import Conv2d, ConvTranspose2d, Linear
+import torch.nn as nn
 
 conv = Conv2d(in_channels=1, out_channels=32, kernel_size=3)
 params = sum(p.numel() for p in conv.parameters() if p.requires_grad)
@@ -20,13 +22,13 @@ print(f"The depthwise separable convolution uses {params_depthwise} parameters."
 
 assert out.shape == out_depthwise.shape, "Size mismatch"
 
-from fvcore.nn import FlopCountAnalysis
+# from fvcore.nn import FlopCountAnalysis
 
-flops = FlopCountAnalysis(conv, x)
-print(f"The standard convolution uses {flops.total():,} flops.")
+# flops = FlopCountAnalysis(conv, x)
+# print(f"The standard convolution uses {flops.total():,} flops.")
 
-flops = FlopCountAnalysis(depthwise_separable_conv, x)
-print(f"The depthwise separable convolution uses {flops.total():,} flops.")
+# flops = FlopCountAnalysis(depthwise_separable_conv, x)
+# print(f"The depthwise separable convolution uses {flops.total():,} flops.")
 
 c1 = Conv2d(in_channels=1, out_channels=2, kernel_size=3, padding=1) # replicator
 c2 = Conv2d(in_channels=2, out_channels=2, kernel_size=3, padding=1, groups=2) # depthwise
@@ -82,11 +84,37 @@ model = Sequential(
     c20, ReLU(),
     c21, ReLU(),
 )
-params_depthwise = sum(p.numel() for p in model.parameters() if p.requires_grad)
-print(f"OutlierNet uses {params_depthwise} parameters.")
-x = torch.rand(1, 1, 72, 32)
-flops = FlopCountAnalysis(model, x)
-print(f"OutlierNet uses {flops.total():,} flops.")
+# params_depthwise = sum(p.numel() for p in model.parameters() if p.requires_grad)
+# print(f"OutlierNet uses {params_depthwise} parameters.")
+# x = torch.rand(1, 1, 72, 32)
+# flops = FlopCountAnalysis(model, x)
+# print(f"OutlierNet uses {flops.total():,} flops.")
+
+class Stacked(nn.Module):
+    def __init__(self):
+        super(Stacked, self).__init__()
+        self.s = nn.Sequential(
+        nn.Conv2d(1, 4, 5, padding=2),
+        nn.ReLU(True),
+        nn.Conv2d(4, 8, 5, padding=2),
+        nn.ReLU(True),
+        nn.Conv2d(8, 16, 5, padding=2),
+        nn.ReLU(True),
+        nn.Conv2d(16, 16, 3, padding=1),
+        nn.ReLU(True),
+        nn.Conv2d(16, 16, 3, padding=1),
+        nn.ReLU(True),
+        nn.Conv2d(16, 16, 3, padding=1),
+        nn.ReLU(True),
+        nn.Conv2d(16, 1, 3, padding=1),
+        nn.Sigmoid()
+        )
+        
+    
+    def forward(self, x):
+        return self.s(x)
+
+model = Stacked()
 
 # lin1 = Linear(3, 1)
 # lin2 = Linear(10, 1)
@@ -106,31 +134,46 @@ import time
 
 # x = torch.rand(1, 3)
 x = torch.rand(1, 1, 72, 32)
-torch.onnx.export(model, x, "outliernet.onnx", input_names=["input"], output_names=["output"])
-onnx_model = onnx.load("outliernet.onnx")
+torch.onnx.export(model, x, "stacked.onnx", input_names=["input"], output_names=["output"])
+onnx_model = onnx.load("stacked.onnx")
 onnx.checker.check_model(onnx_model)
 options = ort.SessionOptions()
-options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_DISABLE_ALL
 # options.add_session_config_entry("session.set_denormal_as_zero", "1")
 # options.execution_mode.ORT_PARALLEL
 # options.add_session_config_entry("session.intra_op.allow_spinning", "0")
-options.enable_profiling = True
-options.intra_op_num_threads = 1
-ort_session = ort.InferenceSession("outliernet.onnx", options)
+# options.enable_profiling = True
+# options.intra_op_num_threads = 1
+ort_session = ort.InferenceSession("stacked.onnx", options=options)
 input_name = ort_session.get_inputs()[0].name
 output_name = ort_session.get_outputs()[0].name
 x = x.numpy()
 # pr = cProfile.Profile()
 # pr.enable()
-#for i in range(10000):
 start = time.time()
-ort_session.run([output_name], {input_name: x})
-ort_session.run([output_name], {input_name: x})
-ort_session.run([output_name], {input_name: x})
-ort_session.run([output_name], {input_name: x})
-ort_session.run([output_name], {input_name: x})
+for i in range(1000):
+    ort_session.run([output_name], {input_name: x})
+
 end = time.time()
-print(f"Lin inference time: {(end - start)/ 4 *1000} ms")
+print(f"Lin inference time: {(end - start)/ 1000 *1000} ms")
+
+import onnxmltools
+from onnxmltools.utils.float16_converter import convert_float_to_float16
+
+input_onnx_model = 'stacked.onnx'
+output_onnx_model = 'stacked_fp16.onnx'
+
+onnx_model = onnxmltools.utils.load_model(input_onnx_model)
+onnx_model = convert_float_to_float16(onnx_model)
+onnxmltools.utils.save_model(onnx_model, output_onnx_model)
+session2 = ort.InferenceSession(output_onnx_model, options=options)
+x = x.astype(np.float16)
+start = time.time()
+for i in range(1000):
+    y = session2.run(None, {input_name: x})[0]
+end = time.time()
+print("Average time of inference ort_fp16: ", (end - start) / 1000 * 1000, "ms")
+
 
 # pr.disable()
 # s = io.StringIO()

@@ -6,14 +6,16 @@ import torch.nn.functional as F
 from torch_geometric.loader import DataLoader
 
 from helpers import *
+from helpers_custom import *
 import wandb
 wandb.init(entity="mabeyer", project="mrich_denoise", mode='disabled') # 
 # %%
-batch_size = 128
-epochs = 1
-es_patience = 5
-
-data = CreateGraphDataset("../data.root:train", 10000)
+batch_size = 256
+epochs = 100
+es_patience = 3
+# AUC: 0.9458
+# AUC w/ graph fix: 0.9225
+data = CreateGraphDataset("../data.root:train", 300, dist = 5)
 np.random.seed(123)
 idxs = np.random.permutation(len(data))
 idx_train, idx_val, idx_test = np.split(idxs, [int(0.6 * len(data)), int(0.99 * len(data))])
@@ -22,7 +24,7 @@ train_loader = DataLoader([data[index] for index in idx_train], batch_size=batch
 val_loader = DataLoader([data[index] for index in idx_val], batch_size=batch_size)
 # %%
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = TestNet(data[0], 8).to(device) # .float() # pass data[0] to get node/edge_feature amount
+model = customGNN().to(device) # .float() # pass data[0] to get node/edge_feature amount
 model = model.to(torch.float)
 print(model)
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
@@ -89,6 +91,21 @@ def predict(loader):
     return tar, prd
 datax = data[0]
 del data, train_loader, val_loader
+
+data_test = CreateGraphDataset("../data_test.root:train", 100000)
+test_loader = DataLoader(data_test, batch_size=batch_size)
+model.eval()
+y_true, y_pred = [], []
+
+with torch.no_grad():
+    for data in test_loader:
+        data = data.to(device)
+        output = model(data)
+        y_true.extend(data.y.cpu().numpy())
+        y_pred.extend(output.cpu().numpy())
+
+y_true, y_pred = np.asarray(y_true), np.asarray(y_pred)
+print(f"AUC score: {roc_auc_score(y_true, y_pred)}")
 
 # model.load_state_dict(torch.load('model_best.pt'))
 # model.eval()

@@ -32,7 +32,7 @@ wandb.init(entity="mabeyer", project="ort") # , mode="disabled"
 
 # %%
 train_events = None # None for all events
-test_events = 30000
+test_events = 32
 
 x, y = None, None
 with uproot.open("../data.root") as file:
@@ -52,16 +52,16 @@ x, x_val, y, y_val = train_test_split(x, y, test_size=0.2)
 model = networks.UNet()
 model.summary()
 
-es = EarlyStopping(monitor='val_loss', min_delta=0, patience=3, mode='min')
+es = EarlyStopping(monitor='val_loss', min_delta=0, patience=5, mode='min')
 cp_save = ModelCheckpoint('model.h5', save_best_only=True, monitor='val_loss', mode='min', verbose=1)
 model.fit(  x=x, y=y,
-            batch_size=512,
+            batch_size=256,
             epochs=100,
             validation_data=(x_val, y_val),
             callbacks=[es, cp_save, WandbCallback()])
 # %%
-model.load_weights('model.h5')
 del x, y
+model.load_weights('model.h5')
 
 x_test = None
 y_test = None
@@ -69,25 +69,39 @@ with uproot.open("../data_test.root") as file:
     x_test = np.reshape(np.array(file["train"]["time"].array(entry_stop=test_events)), (-1, 72, 32, 1))
     y_test = np.reshape(np.array(file["train"]["tar"].array(entry_stop=test_events)), (-1, 72, 32, 1))
 
-pred_arr = np.empty((0))
-y_test_arr = np.empty((0))
-hit_avg_val = 0
-noise_avg_val = 0
-print("start test iteration")
-for i in range(int(len(x_test)/10000)): # predict in batches of 10k
-    x_i = x_test[i*10000:(i+1)*10000]
-    mask_i = tf.greater(x_i, 0.01)
-    pred_i = model.predict(x_i, batch_size=128)
-    pred_i_arr = tf.boolean_mask(pred_i, mask_i).eval(session=tf.compat.v1.Session())
-    pred_arr = np.append(pred_arr, pred_i_arr)
-    y_test_i = tf.boolean_mask(y_test[i*10000:(i+1)*10000], mask_i).eval(session=tf.compat.v1.Session())
-    y_test_arr = np.append(y_test_arr, y_test_i)
-    hit_avg_val += helpers.hit_average(y_test[i*10000:(i+1)*10000], pred_i)
-    noise_avg_val += helpers.noise_average(y_test[i*10000:(i+1)*10000], pred_i, x_i)
-    print("test iteration {} of {}".format(i+1, int(len(x_test)/10000)))
+pred = model.predict(x_test, batch_size=32)
+# plot pred in a 2d colour plot
+import matplotlib.pyplot as plt
 
-helpers.LogWandb(y_test_arr, pred_arr)
-wandb.log({ "hit_avg_val": hit_avg_val, "noise_avg_val": noise_avg_val })
+plt.figure(figsize=(20, 20))
+for i in range(1, 4):
+    ax = plt.subplot(2, 2, i)
+    plt.imshow(pred[i, :, :, 0], interpolation='none', cmap='gray')
+    plt.title(str(i))
+    plt.colorbar()
+plt.show(block=True)
+
+
+
+# pred_arr = np.empty((0))
+# y_test_arr = np.empty((0))
+# hit_avg_val = 0
+# noise_avg_val = 0
+# print("start test iteration")
+# for i in range(int(len(x_test)/10000)): # predict in batches of 10k
+#     x_i = x_test[i*10000:(i+1)*10000]
+#     mask_i = tf.greater(x_i, 0.01)
+#     pred_i = model.predict(x_i, batch_size=128)
+#     pred_i_arr = tf.boolean_mask(pred_i, mask_i).eval(session=tf.compat.v1.Session())
+#     pred_arr = np.append(pred_arr, pred_i_arr)
+#     y_test_i = tf.boolean_mask(y_test[i*10000:(i+1)*10000], mask_i).eval(session=tf.compat.v1.Session())
+#     y_test_arr = np.append(y_test_arr, y_test_i)
+#     hit_avg_val += helpers.hit_average(y_test[i*10000:(i+1)*10000], pred_i)
+#     noise_avg_val += helpers.noise_average(y_test[i*10000:(i+1)*10000], pred_i, x_i)
+#     print("test iteration {} of {}".format(i+1, int(len(x_test)/10000)))
+
+# helpers.LogWandb(y_test_arr, pred_arr)
+# wandb.log({ "hit_avg_val": hit_avg_val, "noise_avg_val": noise_avg_val })
 
 # %%
 # onnx_model, _ = tf2onnx.convert.from_keras(model)

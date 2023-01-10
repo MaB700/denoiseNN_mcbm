@@ -46,7 +46,7 @@ def make_graph(index, time, tar, dist):
         for j in range(n):
             if i == j :
                 continue
-            if (x_pos[0, i]-x_pos[0, j]) <= dist and (y_pos[0, i]-y_pos[0, j]) <= dist :
+            if abs(x_pos[0, i]-x_pos[0, j]) <= dist and abs(y_pos[0, i]-y_pos[0, j]) <= dist :
                 if -0.20 < (x[i, 0] - x[j, 0]) < 0.20 :
                     start_index.append(i)
                     end_index.append(j)
@@ -69,7 +69,7 @@ def make_graph(index, time, tar, dist):
             y0 = x[start_index[i], 2]
             x1 = x[end_index[i], 1]
             y1 = x[end_index[i], 2]
-            edge_features[i, 0] = math.sqrt(((x1-x0)*31.0)**2 + ((y1-y0)*71)**2)/(dist*1.41422)
+            edge_features[i] = math.sqrt(((x1-x0)*31.0)**2 + ((y1-y0)*71)**2)/(dist*1.41422)
         
     edge_features = torch.from_numpy(edge_features).float()
 
@@ -88,10 +88,10 @@ class Net(torch.nn.Module):
         self.node_encoder = nn.Linear(data.x.size(-1), hidden_nodes)
         self.edge_encoder = nn.Linear(data.edge_attr.size(-1), hidden_nodes)
         
-        self.conv1 = geonn.GENConv(hidden_nodes, hidden_nodes)
-        self.conv2 = geonn.GENConv(hidden_nodes, hidden_nodes)
-        self.conv3 = geonn.GENConv(hidden_nodes, hidden_nodes)
-        self.conv4 = geonn.GENConv(hidden_nodes, 1)        
+        self.conv1 = geonn.GeneralConv(hidden_nodes, hidden_nodes, hidden_nodes)
+        self.conv2 = geonn.GeneralConv(hidden_nodes, hidden_nodes, hidden_nodes)
+        self.conv3 = geonn.GeneralConv(hidden_nodes, hidden_nodes, hidden_nodes)
+        self.conv4 = geonn.GeneralConv(hidden_nodes, 1, hidden_nodes)    
 
         # self.double()
 

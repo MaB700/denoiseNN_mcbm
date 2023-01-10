@@ -7,3 +7,8 @@ wandb/
 *.prof
 *.root
 *.pt
+*.old
+*.data
+*.exe
+*.ckpt
+*.png

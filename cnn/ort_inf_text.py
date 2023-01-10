@@ -8,16 +8,36 @@ import olive
 from olive.optimization_config import OptimizationConfig
 from olive.optimize import optimize
 
-opt_config = OptimizationConfig(
-    model_path = "./mixed.onnx",
-    result_path = "olive_opt_latency_result",
-    providers_list = ["cpu"],
-    inter_thread_num_list = [1,2,4, 8],
-    execution_mode_list = ["parallel", "sequential"],
-    warmup_num = 10,
-    test_num = 40)
+# import openvino.utils as utils
 
-result = optimize(opt_config)
+def modelopt():
+    opt_config = OptimizationConfig(
+        model_path = "lin5.onnx",
+        result_path = "olive_opt_latency_result",
+        providers_list = ["cpu","cuda"], # ,"dnnl", "openvino"
+        #inter_thread_num_list = [1,4],
+        #intra_thread_num_list = [1,4],
+        #execution_mode_list = ["sequential", "parallel"],
+        ort_opt_level_list = ["all"],
+        warmup_num = 1000,
+        test_num = 10000)
+
+    # opt_config = OptimizationConfig(
+    #     model_path = "Linear_16x.onnx",
+    #     result_path = "olive_opt_throughput_result",
+    #     throughput_tuning_enabled=True,
+    #     inputs_spec = {"input_1": [-1, 100]},
+    #     max_latency_percentile = 0.95,
+    #     max_latency_ms = 100,
+    #     threads_num = 1,
+    #     dynamic_batching_size = 4,
+    #     min_duration_sec=10)
+
+    result = optimize(opt_config)
+
+if __name__ == "__main__":
+    # utils.add_openvino_libs_to_path()
+    modelopt()
 
 
 

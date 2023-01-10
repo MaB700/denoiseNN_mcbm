@@ -7,7 +7,7 @@ from torch_geometric.data import Data
 from torch_geometric.data import DataLoader
 import torch.nn as nn
 
-import onnxruntime
+import onnxruntime as ort
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -133,14 +133,18 @@ class ResAGNN(nn.Module):
 
 hparams = torch.load("hyper_parameters.ckpt")
 hparams.update({"n_graph_iters": 3})
+hparams.update({"layernorm": False})
+hparams.update({"nb_edge_layer": 2})
+hparams.update({"nb_node_layer": 2})
+hparams.update({"hidden": 32})
 # print content of .ckpt file
-print(hparams)
+# print(hparams)
 model = ResAGNN(hparams)
-print(model)
+# print(model)
 
 x = torch.randn(3, 3)
 x2 = torch.randn(10, 3)
-x3 = torch.randn(30, 3)
+x3 = torch.randn(35, 3)
 edge_index = torch.tensor([[0, 1, 2], [1, 0, 2]])
 edge_index2 = torch.tensor([[1, 0, 2, 2, 2, 4, 3, 7, 6], 
                             [0, 1, 3, 4, 7, 0, 4, 8, 9]])
@@ -159,13 +163,19 @@ torch.onnx.export(model, input_data, ONNX_FILE_PATH, input_names=["nodes", "edge
 expected = model(*input_data)
 expected2 = model(*input_data2)
 expected3 = model(*input_data3)
-print(expected3)
-
-session = onnxruntime.InferenceSession(ONNX_FILE_PATH, None)
+# print(expected3)
+options = ort.SessionOptions()
+options.add_session_config_entry("session.set_denormal_as_zero", "1")
+options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+options.intra_op_num_threads = 4 # athena uses 1
+options.inter_op_num_threads = 4
+# options.enable_profiling=True
+options.execution_mode.ORT_PARALLEL
+session = ort.InferenceSession(ONNX_FILE_PATH, None)
 out = session.run(None, {"nodes": input_data[0].numpy(), "edge_index": input_data[1].numpy()})[0]
 out2 = session.run(None, {"nodes": input_data2[0].numpy(), "edge_index": input_data2[1].numpy()})[0]
 out3 = session.run(None, {"nodes": input_data3[0].numpy(), "edge_index": input_data3[1].numpy()})[0]
-print(out3)
+# print(out3)
 # measure the average time of inference in 1000 times in ms
 import time
 start = time.time()
