@@ -4,11 +4,13 @@ import numpy as np
 import torch
 
 from torch_geometric.data import Data
-from torch_geometric.data import DataLoader
+from torch_geometric.loader import DataLoader
+from torch_geometric.transforms import remove_isolated_nodes
 import torch.nn as nn
 
 import onnxruntime as ort
 
+from helpers_custom import *
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # print pytorch version
@@ -139,7 +141,8 @@ hparams.update({"nb_node_layer": 2})
 hparams.update({"hidden": 32})
 # print content of .ckpt file
 # print(hparams)
-model = ResAGNN(hparams)
+#model = ResAGNN(hparams)
+model = customGNN()
 # print(model)
 
 x = torch.randn(3, 3)
@@ -151,10 +154,17 @@ edge_index2 = torch.tensor([[1, 0, 2, 2, 2, 4, 3, 7, 6],
 edge_index3 = torch.tensor([[0, 1, 2, 3, 4, 3, 7, 6, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29],
                             [1, 0, 2, 1, 0, 4, 8, 9, 11, 10, 13, 12, 15, 14, 17, 16, 19, 18, 21, 20, 23, 22, 25, 24, 27, 26, 29, 28]])
 
+n_disconnected_graphs = 32
+data = [Data(x=x3, edge_index=edge_index3) for _ in range(n_disconnected_graphs)]
+data_loader = DataLoader(data, batch_size=n_disconnected_graphs)
+datax = None
+for data in data_loader:
+    datax = data
 
 input_data = (x, edge_index)
 input_data2 = (x2, edge_index2)
 input_data3 = (x3, edge_index3)
+input_datax = (datax.x, datax.edge_index)
 ONNX_FILE_PATH = "ResAGNN_model.onnx"
 dynamic_axes = {"nodes": [0, 1], "edge_index": [0, 1]}
 torch.onnx.export(model, input_data, ONNX_FILE_PATH, input_names=["nodes", "edge_index"], opset_version=16,
@@ -163,6 +173,7 @@ torch.onnx.export(model, input_data, ONNX_FILE_PATH, input_names=["nodes", "edge
 expected = model(*input_data)
 expected2 = model(*input_data2)
 expected3 = model(*input_data3)
+expectedx = model(*input_datax)
 # print(expected3)
 options = ort.SessionOptions()
 options.add_session_config_entry("session.set_denormal_as_zero", "1")
@@ -175,8 +186,8 @@ session = ort.InferenceSession(ONNX_FILE_PATH, None)
 out = session.run(None, {"nodes": input_data[0].numpy(), "edge_index": input_data[1].numpy()})[0]
 out2 = session.run(None, {"nodes": input_data2[0].numpy(), "edge_index": input_data2[1].numpy()})[0]
 out3 = session.run(None, {"nodes": input_data3[0].numpy(), "edge_index": input_data3[1].numpy()})[0]
-# print(out3)
-# measure the average time of inference in 1000 times in ms
+outx = session.run(None, {"nodes": input_datax[0].numpy(), "edge_index": input_datax[1].numpy()})[0]
+
 import time
 start = time.time()
 for i in range(1000):
@@ -184,38 +195,48 @@ for i in range(1000):
 end = time.time()
 print("Average time of inference: ", (end - start) / 1000 * 1000, "ms")
 
-x1 = np.expand_dims(x.numpy().flatten(), axis=0)
-x2 = np.expand_dims(x2.numpy().flatten(), axis=0)
-x3 = np.expand_dims(x3.numpy().flatten(), axis=0)
-edge_index1 = np.expand_dims(edge_index.numpy().flatten(order='F'), axis=0)
-edge_index2 = np.expand_dims(edge_index2.numpy().flatten(order='F'), axis=0)
-edge_index3 = np.expand_dims(edge_index3.numpy().flatten(order='F'), axis=0)
-out_pyg1 = np.expand_dims(expected.detach().cpu().numpy().flatten(), axis=0)
-out_pyg2 = np.expand_dims(expected2.detach().cpu().numpy().flatten(), axis=0)
-out_pyg3 = np.expand_dims(expected3.detach().cpu().numpy().flatten(), axis=0)
-out_onnx1 = np.expand_dims(out.flatten(), axis=0)
-out_onnx2 = np.expand_dims(out2.flatten(), axis=0)
-out_onnx3 = np.expand_dims(out3.flatten(), axis=0)
+start = time.time()
+for i in range(1000):
+    session.run(None, {"nodes": input_datax[0].numpy(), "edge_index": input_datax[1].numpy()})[0]
+end = time.time()
+print("Average time of inference x: ", (end - start) / 1000 * 1000, "ms")
 
-x = (x1, x2, x3)
-edge_index = (edge_index1, edge_index2, edge_index3)
-out_pyg = (out_pyg1, out_pyg2, out_pyg3)
-out_onnx = (out_onnx1, out_onnx2, out_onnx3)
+
+
+
+
+# x1 = np.expand_dims(x.numpy().flatten(), axis=0)
+# x2 = np.expand_dims(x2.numpy().flatten(), axis=0)
+# x3 = np.expand_dims(x3.numpy().flatten(), axis=0)
+# edge_index1 = np.expand_dims(edge_index.numpy().flatten(order='F'), axis=0)
+# edge_index2 = np.expand_dims(edge_index2.numpy().flatten(order='F'), axis=0)
+# edge_index3 = np.expand_dims(edge_index3.numpy().flatten(order='F'), axis=0)
+# out_pyg1 = np.expand_dims(expected.detach().cpu().numpy().flatten(), axis=0)
+# out_pyg2 = np.expand_dims(expected2.detach().cpu().numpy().flatten(), axis=0)
+# out_pyg3 = np.expand_dims(expected3.detach().cpu().numpy().flatten(), axis=0)
+# out_onnx1 = np.expand_dims(out.flatten(), axis=0)
+# out_onnx2 = np.expand_dims(out2.flatten(), axis=0)
+# out_onnx3 = np.expand_dims(out3.flatten(), axis=0)
+
+# x = (x1, x2, x3)
+# edge_index = (edge_index1, edge_index2, edge_index3)
+# out_pyg = (out_pyg1, out_pyg2, out_pyg3)
+# out_onnx = (out_onnx1, out_onnx2, out_onnx3)
 
 # write x and edge_index to file with comma as delimiter, each row is a sample
-with open("in_node.csv", "w") as f:
-    for i in range(len(x)):
-        np.savetxt(f, x[i], delimiter=",")
+# with open("in_node.csv", "w") as f:
+#     for i in range(len(x)):
+#         np.savetxt(f, x[i], delimiter=",")
 
-with open("in_edge_index.csv", "w") as f:
-    for i in range(len(edge_index)):
-        np.savetxt(f, edge_index[i], delimiter=",", fmt="%u")
+# with open("in_edge_index.csv", "w") as f:
+#     for i in range(len(edge_index)):
+#         np.savetxt(f, edge_index[i], delimiter=",", fmt="%u")
 
-with open("out_pyg.csv", "w") as f:
-    for i in range(len(out_pyg)):
-        np.savetxt(f, out_pyg[i], delimiter=",")
+# with open("out_pyg.csv", "w") as f:
+#     for i in range(len(out_pyg)):
+#         np.savetxt(f, out_pyg[i], delimiter=",")
 
-with open("out_onnx.csv", "w") as f:
-    for i in range(len(out_onnx)):
-        np.savetxt(f, out_onnx[i], delimiter=",")
+# with open("out_onnx.csv", "w") as f:
+#     for i in range(len(out_onnx)):
+#         np.savetxt(f, out_onnx[i], delimiter=",")
 

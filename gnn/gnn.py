@@ -1,72 +1,83 @@
-# %%
 import numpy as np
-import time
 import torch
 import torch.nn.functional as F
 from torch_geometric.loader import DataLoader
 
 from helpers import *
 from helpers_custom import *
+
 import wandb
-wandb.init(entity="mabeyer", project="mrich_denoise", mode='disabled') # 
-# %%
+wandb.init(entity="mabeyer", project="GNN_denoise") # , mode='disabled'
+
+num_samples = 300000
+num_samples_test = 100000
+node_distance = 5
+
 batch_size = 256
 epochs = 100
-es_patience = 3
-# AUC: 0.9458
-# AUC w/ graph fix: 0.9225
-data = CreateGraphDataset("../data.root:train", 300, dist = 5)
-np.random.seed(123)
-idxs = np.random.permutation(len(data))
-idx_train, idx_val, idx_test = np.split(idxs, [int(0.6 * len(data)), int(0.99 * len(data))])
+es_patience = 5
 
-train_loader = DataLoader([data[index] for index in idx_train], batch_size=batch_size, shuffle=True)
-val_loader = DataLoader([data[index] for index in idx_val], batch_size=batch_size)
-# %%
+print(  "num_samples: ", num_samples, "num_samples_test: ", num_samples_test, 
+        "node_distance: ", node_distance, "batch_size: ", batch_size, 
+        "epochs: ", epochs, "es_patience: ", es_patience)
+
+train_dataset, val_dataset = \
+    torch.utils.data.random_split(CreateGraphDataset("../data.root:train", num_samples, dist = node_distance),
+                                                    [0.8, 0.2],
+                                                    generator=torch.Generator().manual_seed(123))
+
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=batch_size)
+
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = customGNN().to(device) # .float() # pass data[0] to get node/edge_feature amount
+model = customGNN().to(device)
+# model = Net(train_dataset[0], 32).to(device)
 model = model.to(torch.float)
 print(model)
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-# %%
+
 def train_step():
     model.train()
     all_loss = 0
+    all_acc = 0
     i = 0.0
     for data in train_loader:
         data = data.to(device)
-        output = model(data)
+        output = model(data.x, data.edge_index)
         loss = F.binary_cross_entropy(output, data.y, reduction="mean")
         all_loss += loss.item()
+        all_acc += accuracy(data.y, output)
         i += 1.0
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
-    return all_loss/i
+    return all_loss/i, all_acc/i
 
 def evaluate(loader):
     model.eval()
     all_loss = 0
+    all_acc = 0
     i = 0.0
     for data in loader:
         data = data.to(device)
-        output = model(data)
+        output = model(data.x, data.edge_index)
         loss = F.binary_cross_entropy(output, data.y, reduction="mean")
         all_loss += loss.item()
+        all_acc += accuracy(data.y, output)
         i += 1.0
     
-    return all_loss/i
+    return all_loss/i, all_acc/i
 
 best_val_loss = np.inf
 patience = es_patience
 
 for epoch in range(1, epochs + 1):
-    train_loss = train_step()
-    val_loss = evaluate(val_loader)
-    print(f'Epoch: {epoch:02d}, loss: {train_loss:.5f}, val_loss: {val_loss:.5f}')
+    train_loss, train_acc = train_step()
+    val_loss, val_acc = evaluate(val_loader)
+    print(f'Epoch: {epoch:02d}, loss: {train_loss:.5f}, val_loss: {val_loss:.5f}, acc: {train_acc:.5f}, val_acc: {val_acc:.5f}')
     wandb.log({ "train_loss": train_loss, "val_loss": val_loss })
-
+    wandb.log({ "train_acc": train_acc, "val_acc": val_acc })
     if val_loss < best_val_loss :
         best_val_loss = val_loss
         patience = es_patience
@@ -84,15 +95,18 @@ def predict(loader):
     prd = np.empty((0))
     for data in loader :
         data = data.to(device)
-        pred = model(data).cpu().detach().numpy()
+        pred = model(data.x, data.edge_index).cpu().detach().numpy()
         target = data.y.cpu().detach().numpy()
         tar = np.append(tar, target)
         prd = np.append(prd, np.array(pred))
     return tar, prd
-datax = data[0]
-del data, train_loader, val_loader
 
-data_test = CreateGraphDataset("../data_test.root:train", 100000)
+del train_loader, val_loader, train_dataset, val_dataset
+
+model.load_state_dict(torch.load('model_best.pt'))
+model.eval()
+
+data_test = CreateGraphDataset("../data_test.root:train", num_samples_test, dist=node_distance)
 test_loader = DataLoader(data_test, batch_size=batch_size)
 model.eval()
 y_true, y_pred = [], []
@@ -100,59 +114,9 @@ y_true, y_pred = [], []
 with torch.no_grad():
     for data in test_loader:
         data = data.to(device)
-        output = model(data)
+        output = model(data.x, data.edge_index)
         y_true.extend(data.y.cpu().numpy())
         y_pred.extend(output.cpu().numpy())
 
 y_true, y_pred = np.asarray(y_true), np.asarray(y_pred)
-print(f"AUC score: {roc_auc_score(y_true, y_pred)}")
-
-# model.load_state_dict(torch.load('model_best.pt'))
-# model.eval()
-
-# test_data = CreateGraphDataset("../data_test.root:train", 0)
-# test_loader = DataLoader(test_data, batch_size=batch_size)
-# test_gt, test_pred = predict(test_loader)
-# LogWandb(test_gt, test_pred)
-
-# def meanSigma(data):
-#     n = len(data)
-#     mean = sum(data)/n
-#     dev = [(x - mean)**2 for x in data]
-#     sigma = math.sqrt(sum(dev)/n)
-#     return mean*1e3, sigma*1e3
-
-# test_loader_single = DataLoader(test_data[0:1000], batch_size=1)
-
-# def predict_timed(loader, device_timed):
-#     model.eval()
-#     times = []
-#     for data in loader :
-#         data = data.to(device_timed)
-#         start = time.process_time()
-#         pred = model(data)
-#         stop = time.process_time() - start
-#         times.append(stop)
-    
-#     return times
-
-# model = Net(datax, 32).to(torch.device('cpu')) # .float() # pass data[0] to get node/edge_feature amount
-# model = model.to(torch.float)
-# model.load_state_dict(torch.load('model_best.pt'))
-# model.eval()
-
-# t_cpu = predict_timed(test_loader_single, torch.device('cpu'))
-# mean_cpu, sigma_cpu = meanSigma(t_cpu)
-# wandb.log({"cpu_time_xmean": mean_cpu})
-# wandb.log({"cpu_time_xsigma": sigma_cpu})
-
-# t_cuda = predict_timed(test_loader_single, torch.device('cuda'))
-# mean_cuda, sigma_cuda = meanSigma(t_cuda)
-# wandb.log({"gpu_time_xmean": mean_cuda})
-# wandb.log({"gpu_time_xsigma": sigma_cuda})
-
-# test_auc = roc_auc_score(val_gt, val_pred)
-# print("Test AUC: {:.4f}".format(test_auc))
-
-# cm = confusion_matrix([1 if a_ > 0.5 else 0 for a_ in val_gt], [1 if a_ > 0.5 else 0 for a_ in val_pred], normalize='true')
-# print(cm)
+LogWandb(y_true, y_pred)

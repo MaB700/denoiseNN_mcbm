@@ -16,6 +16,12 @@ import uproot
 from sklearn.metrics import roc_auc_score, confusion_matrix, roc_curve
 import wandb
 
+def accuracy(y_true, y_pred):
+    y_pred = y_pred > 0.5
+    y_true = y_true > 0.5
+    correct = (y_pred == y_true).sum().item()
+    return correct / y_true.size(0)
+
 def CreateGraphDataset(path, n, dist = 7):
     data = uproot.open(path)
     graphs = []
@@ -63,13 +69,13 @@ def make_graph(index, time, tar, dist):
 
     # Edge features
     edge_features = np.zeros((edge_index.shape[1], 1))
-    if n > 1 :
-        for i in range(edge_index.shape[1]):
-            x0 = x[start_index[i], 1]
-            y0 = x[start_index[i], 2]
-            x1 = x[end_index[i], 1]
-            y1 = x[end_index[i], 2]
-            edge_features[i] = math.sqrt(((x1-x0)*31.0)**2 + ((y1-y0)*71)**2)/(dist*1.41422)
+    # if n > 1 :
+    #     for i in range(edge_index.shape[1]):
+    #         x0 = x[start_index[i], 1]
+    #         y0 = x[start_index[i], 2]
+    #         x1 = x[end_index[i], 1]
+    #         y1 = x[end_index[i], 2]
+    #         edge_features[i] = math.sqrt(((x1-x0)*31.0)**2 + ((y1-y0)*71)**2)/(dist*1.41422)
         
     edge_features = torch.from_numpy(edge_features).float()
 
@@ -86,97 +92,23 @@ class Net(torch.nn.Module):
         super(Net, self).__init__()
 
         self.node_encoder = nn.Linear(data.x.size(-1), hidden_nodes)
-        self.edge_encoder = nn.Linear(data.edge_attr.size(-1), hidden_nodes)
+        #self.edge_encoder = nn.Linear(data.edge_attr.size(-1), hidden_nodes)
         
-        self.conv1 = geonn.GeneralConv(hidden_nodes, hidden_nodes, hidden_nodes)
-        self.conv2 = geonn.GeneralConv(hidden_nodes, hidden_nodes, hidden_nodes)
-        self.conv3 = geonn.GeneralConv(hidden_nodes, hidden_nodes, hidden_nodes)
-        self.conv4 = geonn.GeneralConv(hidden_nodes, 1, hidden_nodes)    
+        self.conv1 = geonn.ResGatedGraphConv(hidden_nodes, hidden_nodes)
+        self.conv2 = geonn.ResGatedGraphConv(hidden_nodes, hidden_nodes)
+        self.conv3 = geonn.ResGatedGraphConv(hidden_nodes, hidden_nodes)
+        self.conv4 = geonn.ResGatedGraphConv(hidden_nodes, 1)    
 
         # self.double()
 
-    def forward(self, data):
-        x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
-        
+    def forward(self, x, edge_index, edge_attr=None):        
         x = self.node_encoder(x)
-        edge_attr = self.edge_encoder(edge_attr)
+        #edge_attr = self.edge_encoder(edge_attr)
 
-        x = F.relu(self.conv1(x, edge_index, edge_attr))
-        x = F.relu(self.conv2(x, edge_index, edge_attr))
-        x = F.relu(self.conv3(x, edge_index, edge_attr))
-        return torch.sigmoid(self.conv4(x, edge_index, edge_attr))
-
-class EdgeModel(torch.nn.Module):
-    def __init__(self, node_in, node_out, edge_in, edge_out, hid_channels, residuals=True):
-        super().__init__()
-
-        self.residuals = residuals
-
-        layers = [Linear(node_in*2 + edge_in, hid_channels),
-                  ReLU(),
-                  Linear(hid_channels, edge_out)]
-
-        self.edge_mlp = Sequential(*layers)
-        self.double()
-
-    def forward(self, src, dest, edge_attr, u, batch):
-        out = torch.cat([src, dest, edge_attr], dim=1)
-        out = self.edge_mlp(out)
-        if self.residuals:
-            out += edge_attr
-        return out
-
-class NodeModel(torch.nn.Module):
-    def __init__(self, node_in, node_out, edge_in, edge_out, hid_channels, residuals=True):
-        super().__init__()
-
-        self.residuals = residuals
-
-        layers = [Linear(node_in + edge_out, hid_channels),
-                  ReLU(),
-                  Linear(hid_channels, node_out)]
-
-        self.node_mlp = Sequential(*layers)
-        self.double()
-
-    def forward(self, x, edge_index, edge_attr, u, batch):
-        row, col = edge_index
-        out = edge_attr
-
-        out1 = scatter_add(out, col, dim=0, dim_size=x.size(0))
-        out = torch.cat([x, out1], dim=1)
-
-        out = self.node_mlp(out)
-        if self.residuals:
-            out += x
-        return torch.sigmoid(out)
-
-class TestNet(torch.nn.Module):
-    def __init__(self, data, hidden_nodes):
-        super(TestNet, self).__init__()
-
-        self.node_in = data.x.size(-1) # node features
-        self.edge_in = data.edge_attr.size(-1) # edge features
-        self.hidden_nodes = hidden_nodes
-        node_out = self.hidden_nodes
-        edge_out = self.hidden_nodes
-        lin_nodes = self.hidden_nodes
-
-        layers = []
-
-        layer = MetaLayer(node_model=NodeModel(self.node_in, 1, None, edge_out, lin_nodes, residuals=False), 
-        edge_model=EdgeModel(self.node_in, None, self.edge_in, edge_out, lin_nodes, residuals=False))
-
-        layers.append(layer)
-        self.layers = ModuleList(layers)
-
-    def forward(self, x, edge_index, edge_attr):#data FIXME:
-        #x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
-        for layer in self.layers:
-            x, edge_attr, _ = layer(x, edge_index, edge_attr, None)#, data.batch  
-
-        return x
-
+        x = F.relu(self.conv1(x, edge_index))
+        x = F.relu(self.conv2(x, edge_index))
+        x = F.relu(self.conv3(x, edge_index))
+        return torch.sigmoid(self.conv4(x, edge_index))
 
 class LogWandb():
     def __init__(self, gt, pred):
@@ -190,8 +122,8 @@ class LogWandb():
         auc = roc_auc_score(self.gt, self.pred)
         wandb.log({"test_auc": auc})
         
-        tn, fp, fn, tp = confusion_matrix(y_true=[1 if a_ > cut_value else 0 for a_ in self.gt], \
-                                            y_pred=[1 if a_ > cut_value else 0 for a_ in self.pred]).ravel()
+        tn, fp, fn, tp = confusion_matrix(y_true= self.gt > cut_value, \
+                                            y_pred= self.pred > cut_value).ravel()
 
         wandb.log({"test_acc": (tp+tn)/(tn+fp+tp+fn)}) # accuracy
         wandb.log({"test_sens": tp/(tp+fn)}) # sensitifity
@@ -210,32 +142,73 @@ class LogWandb():
                                     classes_to_plot=[1],
                                     title="ROC")})
 
-
-
-
-
-
-
-
-
-
-
-# class Net(torch.nn.Module):
-#     def __init__(self):
+# class EdgeModel(torch.nn.Module):
+#     def __init__(self, node_in, node_out, edge_in, edge_out, hid_channels, residuals=True):
 #         super().__init__()
-#         self.conv1 = ARMAConv(3, 32)
-#         self.conv2 = ARMAConv(32, 32)
-#         self.conv3 = ARMAConv(32, 32)
-#         self.conv4 = ARMAConv(32, 1)
-#         # self.float()
-#     def forward(self, data):
-#         x, edge_index = data.x, data.edge_index
 
-#         x = F.relu(self.conv1(x, edge_index))
-#         x = F.relu(self.conv2(x, edge_index))
-#         x = F.relu(self.conv3(x, edge_index))
-        
-#         # x = F.dropout(x, training=self.training)
-#         x = self.conv4(x, edge_index)
+#         self.residuals = residuals
 
-#         return torch.sigmoid(x)
+#         layers = [Linear(node_in*2 + edge_in, hid_channels),
+#                   ReLU(),
+#                   Linear(hid_channels, edge_out)]
+
+#         self.edge_mlp = Sequential(*layers)
+#         self.double()
+
+#     def forward(self, src, dest, edge_attr, u, batch):
+#         out = torch.cat([src, dest, edge_attr], dim=1)
+#         out = self.edge_mlp(out)
+#         if self.residuals:
+#             out += edge_attr
+#         return out
+
+# class NodeModel(torch.nn.Module):
+#     def __init__(self, node_in, node_out, edge_in, edge_out, hid_channels, residuals=True):
+#         super().__init__()
+
+#         self.residuals = residuals
+
+#         layers = [Linear(node_in + edge_out, hid_channels),
+#                   ReLU(),
+#                   Linear(hid_channels, node_out)]
+
+#         self.node_mlp = Sequential(*layers)
+#         self.double()
+
+#     def forward(self, x, edge_index, edge_attr, u, batch):
+#         row, col = edge_index
+#         out = edge_attr
+
+#         out1 = scatter_add(out, col, dim=0, dim_size=x.size(0))
+#         out = torch.cat([x, out1], dim=1)
+
+#         out = self.node_mlp(out)
+#         if self.residuals:
+#             out += x
+#         return torch.sigmoid(out)
+
+# class TestNet(torch.nn.Module):
+#     def __init__(self, data, hidden_nodes):
+#         super(TestNet, self).__init__()
+
+#         self.node_in = data.x.size(-1) # node features
+#         self.edge_in = data.edge_attr.size(-1) # edge features
+#         self.hidden_nodes = hidden_nodes
+#         node_out = self.hidden_nodes
+#         edge_out = self.hidden_nodes
+#         lin_nodes = self.hidden_nodes
+
+#         layers = []
+
+#         layer = MetaLayer(node_model=NodeModel(self.node_in, 1, None, edge_out, lin_nodes, residuals=False), 
+#         edge_model=EdgeModel(self.node_in, None, self.edge_in, edge_out, lin_nodes, residuals=False))
+
+#         layers.append(layer)
+#         self.layers = ModuleList(layers)
+
+#     def forward(self, x, edge_index, edge_attr):#data FIXME:
+#         #x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
+#         for layer in self.layers:
+#             x, edge_attr, _ = layer(x, edge_index, edge_attr, None)#, data.batch  
+
+#         return x

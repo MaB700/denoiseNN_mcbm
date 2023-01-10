@@ -70,20 +70,20 @@ class customGNN(nn.Module):
         )
 
         # The edge network computes new edge features from connected nodes
-        self.edge_network = make_mlp(
+        self.edge_network = nn.ModuleList(make_mlp(
             input_size=2*(32+3),
             output_size=1,
             hidden_size=32,
             num_layers=3
-        )
+        ) for _ in range(self.graph_iters))
 
         # The node network computes new node features
-        self.node_network = make_mlp(
+        self.node_network = nn.ModuleList(make_mlp(
             input_size=2*(32+3),
             output_size=32,
             hidden_size=32,
             num_layers=3,
-        )
+        ) for _ in range(self.graph_iters - 1))
 
         self.node_out_network = make_mlp(
             input_size=2*(32+3),
@@ -94,20 +94,13 @@ class customGNN(nn.Module):
         )
 
 
-    def forward(self, data): #, data
-        print(data)
+    def forward(self, x, edge_index): #, data
         # Encode the graph features into the hidden space
-        x = data.x
-        edge_index = data.edge_index
         input_x = x
         x = self.node_encoder(x) # [num_nodes, 3] -> [num_nodes, hidden]
         x = torch.cat([x, input_x], dim=-1) # 
 
         start, end = edge_index[0], edge_index[1]
-        print(start)
-        print(end)
-        # pause execution here
-        os.system("pause")    
 
         # Loop over iterations of edge and node networks
         for i in range(self.graph_iters):
@@ -116,7 +109,7 @@ class customGNN(nn.Module):
 
             # Compute new edge score
             edge_inputs = torch.cat([x[start], x[end]], dim=1)
-            e = self.edge_network(edge_inputs)
+            e = self.edge_network[i](edge_inputs)
             e = torch.sigmoid(e)
 
             # Sum weighted node features coming into each node
@@ -131,7 +124,7 @@ class customGNN(nn.Module):
             if i == self.graph_iters - 1:
                 x = self.node_out_network(node_inputs)
             else:
-                x = self.node_network(node_inputs)                
+                x = self.node_network[i](node_inputs)                
                 # Residual connection
                 x = torch.cat([x, input_x], dim=-1)
                 x = x + x0
