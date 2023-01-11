@@ -16,20 +16,20 @@ device = 'CPU_FP32'
 options = ort.SessionOptions()
 # options.add_session_config_entry("session.set_denormal_as_zero", "1")
 options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-# options.intra_op_num_threads = 1
+options.inter_op_num_threads = 1
+options.intra_op_num_threads = 4
 # options.enable_profiling=True
-# options.execution_mode.ORT_PARALLEL
-# sess = ort.InferenceSession('./model.onnx', providers=['OpenVINOExecutionProvider'], sess_options=options, device_id=0, device_type=device)
-sess = ort.InferenceSession('../cnn_torch/model.onnx', providers=['CPUExecutionProvider'], sess_options=options, device_id=0, device_type=device)
+options.execution_mode.ORT_PARALLEL
+sess = ort.InferenceSession('./model.onnx', providers=['CPUExecutionProvider'], sess_options=options, device_id=0, device_type=device)
+# sess = ort.InferenceSession('../cnn_torch/model.onnx', providers=['CPUExecutionProvider'], sess_options=options, device_id=0, device_type=device)
 
 input_name = sess.get_inputs()[0].name
 input_shape = sess.get_inputs()[0].shape
-batch_size = 1
 
 # input = input.reshape([100, 72, 32, 1])
 # keras_output = keras_output.reshape([100, 72, 32, 1])
-b = 8
-input = np.random.random((b, 1, 72, 32)).astype(np.float32)
+b = 32
+input = np.random.random((b, 72, 32, 1)).astype(np.float32)
 
 pr = cProfile.Profile()
 #pr.enable()

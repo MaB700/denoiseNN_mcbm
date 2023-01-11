@@ -31,7 +31,7 @@ from wandb.keras import WandbCallback
 wandb.init(entity="mabeyer", project="ort") # , mode="disabled"
 
 # %%
-train_events = None # None for all events
+train_events = 1000 # None for all events
 test_events = 32
 
 x, y = None, None
@@ -56,30 +56,30 @@ es = EarlyStopping(monitor='val_loss', min_delta=0, patience=5, mode='min')
 cp_save = ModelCheckpoint('model.h5', save_best_only=True, monitor='val_loss', mode='min', verbose=1)
 model.fit(  x=x, y=y,
             batch_size=256,
-            epochs=100,
+            epochs=0,
             validation_data=(x_val, y_val),
             callbacks=[es, cp_save, WandbCallback()])
 # %%
 del x, y
-model.load_weights('model.h5')
+# model.load_weights('model.h5')
 
-x_test = None
-y_test = None
-with uproot.open("../data_test.root") as file:
-    x_test = np.reshape(np.array(file["train"]["time"].array(entry_stop=test_events)), (-1, 72, 32, 1))
-    y_test = np.reshape(np.array(file["train"]["tar"].array(entry_stop=test_events)), (-1, 72, 32, 1))
+# x_test = None
+# y_test = None
+# with uproot.open("../data_test.root") as file:
+#     x_test = np.reshape(np.array(file["train"]["time"].array(entry_stop=test_events)), (-1, 72, 32, 1))
+#     y_test = np.reshape(np.array(file["train"]["tar"].array(entry_stop=test_events)), (-1, 72, 32, 1))
 
-pred = model.predict(x_test, batch_size=32)
-# plot pred in a 2d colour plot
-import matplotlib.pyplot as plt
+# pred = model.predict(x_test, batch_size=32)
+# # plot pred in a 2d colour plot
+# import matplotlib.pyplot as plt
 
-plt.figure(figsize=(20, 20))
-for i in range(1, 4):
-    ax = plt.subplot(2, 2, i)
-    plt.imshow(pred[i, :, :, 0], interpolation='none', cmap='gray')
-    plt.title(str(i))
-    plt.colorbar()
-plt.show(block=True)
+# plt.figure(figsize=(20, 20))
+# for i in range(1, 4):
+#     ax = plt.subplot(2, 2, i)
+#     plt.imshow(pred[i, :, :, 0], interpolation='none', cmap='gray')
+#     plt.title(str(i))
+#     plt.colorbar()
+# plt.show(block=True)
 
 
 
@@ -104,8 +104,8 @@ plt.show(block=True)
 # wandb.log({ "hit_avg_val": hit_avg_val, "noise_avg_val": noise_avg_val })
 
 # %%
-# onnx_model, _ = tf2onnx.convert.from_keras(model)
-# onnx.save(onnx_model, './model.onnx')
+onnx_model, _ = tf2onnx.convert.from_keras(model)
+onnx.save(onnx_model, './unet.onnx')
 
 # options = ort.SessionOptions()
 # # options.execution_mode.ORT_PARALLEL

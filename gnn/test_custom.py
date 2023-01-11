@@ -9,6 +9,7 @@ from torch_geometric.transforms import remove_isolated_nodes
 import torch.nn as nn
 
 import onnxruntime as ort
+from memory_profiler import profile
 
 from helpers_custom import *
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -191,13 +192,13 @@ outx = session.run(None, {"nodes": input_datax[0].numpy(), "edge_index": input_d
 import time
 start = time.time()
 for i in range(1000):
-    session.run(None, {"nodes": input_data3[0].numpy(), "edge_index": input_data3[1].numpy()})[0]
+    a = session.run(None, {"nodes": input_data3[0].numpy(), "edge_index": input_data3[1].numpy()})[0]
 end = time.time()
 print("Average time of inference: ", (end - start) / 1000 * 1000, "ms")
 
 start = time.time()
 for i in range(1000):
-    session.run(None, {"nodes": input_datax[0].numpy(), "edge_index": input_datax[1].numpy()})[0]
+    a = session.run(None, {"nodes": input_datax[0].numpy(), "edge_index": input_datax[1].numpy()})[0]
 end = time.time()
 print("Average time of inference x: ", (end - start) / 1000 * 1000, "ms")
 

@@ -10,7 +10,7 @@ from tensorflow.python.ops import math_ops
 # tf.disable_v2_behavior()
 from tensorflow.python.framework.ops import disable_eager_execution
 
-disable_eager_execution()
+# disable_eager_execution()
 
 def Stacked():
     model = Sequential()
@@ -86,7 +86,8 @@ def UNet(use_residuals = True):
     c13 = concatenate([u13, i], axis=3) if use_residuals else u13
     o = Conv2D(1, (3, 3), activation='sigmoid', padding='same') (c13)
     model = Model(i, o) #custom_loss(i)
-    model.compile(optimizer='adam', loss=custom_loss(i), metrics=['accuracy'], experimental_run_tf_function=False)
+    # model.compile(optimizer='adam', loss=custom_loss(i), metrics=['accuracy'], experimental_run_tf_function=False)
+    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
     return model
 
 def Autoencoder():

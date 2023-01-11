@@ -12,15 +12,15 @@ from olive.optimize import optimize
 
 def modelopt():
     opt_config = OptimizationConfig(
-        model_path = "lin5.onnx",
+        model_path = "mixed.onnx",
         result_path = "olive_opt_latency_result",
-        providers_list = ["cpu","cuda"], # ,"dnnl", "openvino"
-        #inter_thread_num_list = [1,4],
-        #intra_thread_num_list = [1,4],
-        #execution_mode_list = ["sequential", "parallel"],
+        providers_list = ["cpu"], # ,"dnnl", "openvino"
+        inter_thread_num_list = [1,4],
+        intra_thread_num_list = [1,4],
+        execution_mode_list = ["sequential", "parallel"],
         ort_opt_level_list = ["all"],
-        warmup_num = 1000,
-        test_num = 10000)
+        warmup_num = 100,
+        test_num = 1000)
 
     # opt_config = OptimizationConfig(
     #     model_path = "Linear_16x.onnx",
