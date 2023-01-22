@@ -62,30 +62,30 @@ print("Average time of inference ort_fp32: ", (end - start) / 1000 * 1000, "ms")
 
 
 # INT8 quantization
-# from onnxruntime.quantization.calibrate import CalibrationDataReader
+from onnxruntime.quantization.calibrate import CalibrationDataReader
 
-# class CalibrationDataProvider(CalibrationDataReader):
-#     def __init__(self):
-#         super(CalibrationDataProvider, self).__init__()
-#         self.counter = 0
-#         self.x = torch.randn(1000, 25, 3).numpy()
-#         self.edge_index = torch.randint(0, 25, (1000, 2, 40)).numpy()
+class CalibrationDataProvider(CalibrationDataReader):
+    def __init__(self):
+        super(CalibrationDataProvider, self).__init__()
+        self.counter = 0
+        self.x = torch.randn(1000, 25, 3).numpy()
+        self.edge_index = torch.randint(0, 25, (1000, 2, 40)).numpy()
         
 
-#     def get_next(self):
-#         if self.counter > 1000 - 1:
-#             return None
-#         else:
-#             out = {'nodes': self.x[self.counter], 'edge_index': self.edge_index[self.counter]}
-#             self.counter += 1
-#             return out
+    def get_next(self):
+        if self.counter > 1000 - 1:
+            return None
+        else:
+            out = {'nodes': self.x[self.counter], 'edge_index': self.edge_index[self.counter]}
+            self.counter += 1
+            return out
 
-# cdp = CalibrationDataProvider()
-# quantized_onnx_model = oq.quantize_static('./customgnn.onnx', './customgnn_quant.onnx', weight_type=oq.QuantType.QInt8, calibration_data_reader=cdp, per_channel=True, reduce_range=True)
+cdp = CalibrationDataProvider()
+quantized_onnx_model = oq.quantize_static('./customgnn.onnx', './customgnn_quant.onnx', weight_type=oq.QuantType.QInt8, calibration_data_reader=cdp, per_channel=True, reduce_range=True)
 
-# session2 = ort.InferenceSession('./customgnn_quant.onnx', options)
-# start = time.time()
-# for i in range(1000):
-#     x = session2.run(None, {"nodes": data.x.numpy(), "edge_index": data.edge_index.numpy()})[0]
-# end = time.time()
-# print("Average time of inference ort_quant: ", (end - start) / 1000 * 1000, "ms")
+session2 = ort.InferenceSession('./customgnn_quant.onnx', options)
+start = time.time()
+for i in range(1000):
+    x = session2.run(None, {"nodes": data.x.numpy(), "edge_index": data.edge_index.numpy()})[0]
+end = time.time()
+print("Average time of inference ort_quant: ", (end - start) / 1000 * 1000, "ms")
