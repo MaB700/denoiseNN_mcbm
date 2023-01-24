@@ -47,7 +47,7 @@ class MyDataset(InMemoryDataset):
         data_list = [self.initial_graph(i, time, tar) for i in range(len(time))]
         
         for data in data_list: #TODO: are those deep copys? 
-            data = T.RadiusGraph(6.0, max_num_neighbors=4)(data)
+            data = T.RadiusGraph(8.0, max_num_neighbors=10)(data)
             data = self.rm_edges(data) # remove edges outside abs time difference [workaround]
             data = T.ToUndirected()(data)
             data = T.Distance()(data)

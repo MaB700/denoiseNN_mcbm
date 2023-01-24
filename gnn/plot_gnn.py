@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from torch_geometric.data.data import Data
 import ipywidgets as widgets
 from ipywidgets import fixed
+import mcbm_dataset
 
 def graph_plot(data, idx):
     x = data[idx].x[:, 1:3]
@@ -23,9 +24,10 @@ def graph_plot(data, idx):
     # plt.show(block=True)
     plt.show()
 
-data = CreateGraphDataset("../data.root:train", 100, dist=5)
+data = mcbm_dataset.MyDataset(dataset="test", N = 100, reload=True)
+#data = CreateGraphDataset("../data.root:train", 100, dist=5)
 #idx = 11
-
+print(data[0])
 # graph_plot(data, idx)
 ip = widgets.interact(graph_plot, data=fixed(data), idx=(0, len(data)-1, 1))
 

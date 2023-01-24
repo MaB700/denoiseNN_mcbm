@@ -5,15 +5,18 @@ from torch_geometric.loader import DataLoader
 
 from helpers import *
 from helpers_custom import *
+import mcbm_dataset
 
 import wandb
 wandb.init(entity="mabeyer", project="GNN_denoise") # , mode='disabled'
 
-num_samples = 300000
-num_samples_test = 100000
+
+reload = False
+num_samples = None
+num_samples_test = None
 node_distance = 5
 
-batch_size = 256
+batch_size = 32 # FIXME: 256
 epochs = 100
 es_patience = 5
 
@@ -21,8 +24,13 @@ print(  "num_samples: ", num_samples, "num_samples_test: ", num_samples_test,
         "node_distance: ", node_distance, "batch_size: ", batch_size, 
         "epochs: ", epochs, "es_patience: ", es_patience)
 
+# train_dataset, val_dataset = \
+#     torch.utils.data.random_split(CreateGraphDataset("../data.root:train", num_samples, dist = node_distance),
+#                                                     [0.8, 0.2],
+#                                                     generator=torch.Generator().manual_seed(123))
+
 train_dataset, val_dataset = \
-    torch.utils.data.random_split(CreateGraphDataset("../data.root:train", num_samples, dist = node_distance),
+    torch.utils.data.random_split(mcbm_dataset.MyDataset(dataset="train", N = num_samples, reload=reload),
                                                     [0.8, 0.2],
                                                     generator=torch.Generator().manual_seed(123))
 
@@ -106,7 +114,8 @@ del train_loader, val_loader, train_dataset, val_dataset
 model.load_state_dict(torch.load('model_best.pt'))
 model.eval()
 
-data_test = CreateGraphDataset("../data_test.root:train", num_samples_test, dist=node_distance)
+# data_test = CreateGraphDataset("../data_test.root:train", num_samples_test, dist=node_distance)
+data_test = mcbm_dataset.MyDataset(dataset="test", N = num_samples_test, reload=reload)
 test_loader = DataLoader(data_test, batch_size=batch_size)
 model.eval()
 y_true, y_pred = [], []
