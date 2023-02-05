@@ -11,10 +11,12 @@ import torch_geometric.transforms as T
 from torch_geometric.transforms import BaseTransform
 
 class MyDataset(InMemoryDataset):
-    def __init__(self, root=None, dataset="train", N=1000, reload=False, undirected=True):
+    def __init__(self, root=None, dataset="train", N=1000, radius = 7.0, max_num_neighbors = 8, reload=False, undirected=True):
         self.N = N
         self.dataset = dataset
         self.undirected = undirected
+        self.radius = radius
+        self.max_num_neighbors = max_num_neighbors
         file_dir = os.path.dirname(__file__)
         root = os.path.abspath(os.path.dirname(__file__) + "/../data/")
         if reload:
@@ -47,7 +49,7 @@ class MyDataset(InMemoryDataset):
         data_list = [self.initial_graph(i, time, tar) for i in range(len(time))]
         
         for data in data_list: #TODO: are those deep copys? 
-            data = T.RadiusGraph(8.0, max_num_neighbors=10)(data)
+            data = T.RadiusGraph(self.radius, max_num_neighbors=self.max_num_neighbors)(data)
             data = self.rm_edges(data) # remove edges outside abs time difference [workaround]
             data = T.ToUndirected()(data)
             data = T.Distance()(data)

@@ -11,18 +11,21 @@ import wandb
 wandb.init(entity="mabeyer", project="GNN_denoise") # , mode='disabled'
 
 
-reload = False
+reload = True
 num_samples = None
 num_samples_test = None
-node_distance = 5
+node_distance = 7
+max_num_neighbors = 8
 
-batch_size = 32 # FIXME: 256
-epochs = 100
+batch_size = 256
+lr = 1e-3
+max_epochs = 100
 es_patience = 5
 
-print(  "num_samples: ", num_samples, "num_samples_test: ", num_samples_test, 
-        "node_distance: ", node_distance, "batch_size: ", batch_size, 
-        "epochs: ", epochs, "es_patience: ", es_patience)
+print("num_samples: ", num_samples, "num_samples_test: ", num_samples_test) 
+print("node_distance: ", node_distance, "max_num_neighbors: ", max_num_neighbors)
+print("batch_size: ", batch_size, "learning rate: ", 1e-3)
+print("max_epochs: ", max_epochs, "es_patience: ", es_patience)
 
 # train_dataset, val_dataset = \
 #     torch.utils.data.random_split(CreateGraphDataset("../data.root:train", num_samples, dist = node_distance),
@@ -30,7 +33,8 @@ print(  "num_samples: ", num_samples, "num_samples_test: ", num_samples_test,
 #                                                     generator=torch.Generator().manual_seed(123))
 
 train_dataset, val_dataset = \
-    torch.utils.data.random_split(mcbm_dataset.MyDataset(dataset="train", N = num_samples, reload=reload),
+    torch.utils.data.random_split(mcbm_dataset.MyDataset(dataset="train", N = num_samples, reload=reload, \
+                                                         radius = node_distance, max_num_neighbors = max_num_neighbors),
                                                     [0.8, 0.2],
                                                     generator=torch.Generator().manual_seed(123))
 
@@ -42,7 +46,7 @@ model = customGNN().to(device)
 # model = Net(train_dataset[0], 32).to(device)
 model = model.to(torch.float)
 print(model)
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
 def train_step():
     model.train()
@@ -80,7 +84,7 @@ def evaluate(loader):
 best_val_loss = np.inf
 patience = es_patience
 
-for epoch in range(1, epochs + 1):
+for epoch in range(1, max_epochs + 1):
     train_loss, train_acc = train_step()
     val_loss, val_acc = evaluate(val_loader)
     print(f'Epoch: {epoch:02d}, loss: {train_loss:.5f}, val_loss: {val_loss:.5f}, acc: {train_acc:.5f}, val_acc: {val_acc:.5f}')
@@ -96,6 +100,8 @@ for epoch in range(1, epochs + 1):
         if patience == 0:
             print("Early stopping (best val_loss: {})".format(best_val_loss))
             break
+
+wandb.save('model_best.pt')
 
 def predict(loader):
     model.eval()

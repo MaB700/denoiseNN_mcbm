@@ -7,6 +7,10 @@ import ipywidgets as widgets
 from ipywidgets import fixed
 import mcbm_dataset
 
+
+r = 7.0
+max_neighbours = 8
+
 def graph_plot(data, idx):
     x = data[idx].x[:, 1:3]
     x[:,0] *= 31.0
@@ -24,10 +28,14 @@ def graph_plot(data, idx):
     # plt.show(block=True)
     plt.show()
 
-data = mcbm_dataset.MyDataset(dataset="test", N = 100, reload=True)
+data = mcbm_dataset.MyDataset(dataset="test", N = 40, reload=True, radius=r, max_num_neighbors=max_neighbours)
 #data = CreateGraphDataset("../data.root:train", 100, dist=5)
 #idx = 11
+tot_edge = 0
+for i in range(len(data)):
+    tot_edge += data[i].edge_index.shape[1]
 print(data[0])
+print("tot_edge: ", tot_edge)
 # graph_plot(data, idx)
 ip = widgets.interact(graph_plot, data=fixed(data), idx=(0, len(data)-1, 1))
 
