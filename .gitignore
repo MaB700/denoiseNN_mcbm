@@ -12,5 +12,6 @@ wandb/
 *.exe
 *.ckpt
 *.png
+*.pdf
 build/
 pybind11/

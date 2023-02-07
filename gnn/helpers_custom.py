@@ -44,10 +44,12 @@ def scatter_add_attention(encoded_nodes, encoded_edges, edge_list):
     start, end = edge_list[0], edge_list[1]
 
     src = encoded_nodes[end]*encoded_edges
+    # src = encoded_nodes[end]
     index = start.unsqueeze(-1)
     in_messages = torch.zeros(encoded_nodes.shape, dtype=src.dtype, device=encoded_nodes.device).scatter_add(0, index.repeat((1,src.shape[1])), src) 
 
     src = encoded_nodes[start]*encoded_edges
+    # src = encoded_nodes[start]
     index = end.unsqueeze(-1)
     out_messages = torch.zeros(encoded_nodes.shape, dtype=src.dtype, device=encoded_nodes.device).scatter_add(0, index.repeat((1,src.shape[1])), src) 
     
@@ -115,7 +117,7 @@ class customGNN(nn.Module):
             # Sum weighted node features coming into each node
             #             weighted_messages_in = scatter_add(e * x[start], end, dim=0, dim_size=x.shape[0])
             #             weighted_messages_out = scatter_add(e * x[end], start, dim=0, dim_size=x.shape[0])
-
+            # e = None
             weighted_messages = scatter_add_attention(x, e, edge_index)
 
             # Compute new node features

@@ -174,6 +174,7 @@ input_datax = (datax.x, datax.edge_index)
 print(datax.edge_index.shape)
 ONNX_FILE_PATH = "ResAGNN_model.onnx"
 dynamic_axes = {"nodes": [0, 1], "edge_index": [0, 1]}
+
 # dynamic_axes = {"nodes": {0: "num_nodes", 1:"node_features"}, "edge_index": {1: "num_edges"}, "output": {0: "num_nodes"}}
 torch.onnx.export(model, input_data, ONNX_FILE_PATH, input_names=["nodes", "edge_index"], opset_version=16,
                   output_names=["output"], export_params=True, dynamic_axes=dynamic_axes)
@@ -188,7 +189,7 @@ options = ort.SessionOptions()
 options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
 options.intra_op_num_threads = 1 # athena uses 1
 options.inter_op_num_threads = 8
-# options.enable_profiling=True
+options.enable_profiling = False
 options.execution_mode.ORT_SEQUENTIAL
 session = ort.InferenceSession(ONNX_FILE_PATH, sess_options=options)
 out = session.run(None, {"nodes": input_data[0].numpy(), "edge_index": input_data[1].numpy()})[0]
@@ -199,13 +200,13 @@ outx = session.run(None, {"nodes": input_datax[0].numpy(), "edge_index": input_d
 import time
 start = time.time()
 j = 0
-for i in range(1000):
+for i in range(10):
     if j == (n_disconnected_graphs - 1): 
         j = 0
     a = session.run(None, {"nodes": data[j].x.numpy(), "edge_index": data[j].edge_index.numpy()})[0]
     j += 1
 end = time.time()
-print("Average time of inference: ", (end - start) / 1000 * 1000, "ms")
+print("Average time of inference: ", (end - start) / 10 * 1000, "ms")
 
 start = time.time()
 for i in range(1000):
@@ -233,25 +234,25 @@ class CalibrationDataProvider(CalibrationDataReader):
             self.counter += 1
             return out
 
-cdp = CalibrationDataProvider()
-quantized_onnx_model = oq.quantize_static(ONNX_FILE_PATH, './customgnn_quant.onnx', weight_type=oq.QuantType.QInt8, calibration_data_reader=cdp, per_channel=True, reduce_range=True)
+# cdp = CalibrationDataProvider()
+# quantized_onnx_model = oq.quantize_static(ONNX_FILE_PATH, './customgnn_quant.onnx', weight_type=oq.QuantType.QInt8, calibration_data_reader=cdp, per_channel=True, reduce_range=True)
 
-session2 = ort.InferenceSession('./customgnn_quant.onnx', options)
+# session2 = ort.InferenceSession('./customgnn_quant.onnx', options)
 j = 0
-start = time.time()
-for i in range(1000):    
-    if j == (n_disconnected_graphs - 1):
-        j = 0
-    x = session2.run(None, {"nodes": data[j].x.numpy(), "edge_index": data[j].edge_index.numpy()})[0]
-    j += 1
-end = time.time()
-print("Average time of inference ort_quant: ", (end - start) / 1000 * 1000, "ms")
+# start = time.time()
+# for i in range(1000):    
+#     if j == (n_disconnected_graphs - 1):
+#         j = 0
+#     x = session2.run(None, {"nodes": data[j].x.numpy(), "edge_index": data[j].edge_index.numpy()})[0]
+#     j += 1
+# end = time.time()
+# print("Average time of inference ort_quant: ", (end - start) / 1000 * 1000, "ms")
 
-start = time.time()
-for i in range(1000):
-    x = session2.run(None, {"nodes": input_datax[0].numpy(), "edge_index": input_datax[1].numpy()})[0]
-end = time.time()
-print("Average time of inference ort_quant x: ", (end - start) / 1000 * 1000, "ms", (end - start) / (1000*n_disconnected_graphs) * 1000, "ms/sample")
+# start = time.time()
+# for i in range(1000):
+#     x = session2.run(None, {"nodes": input_datax[0].numpy(), "edge_index": input_datax[1].numpy()})[0]
+# end = time.time()
+# print("Average time of inference ort_quant x: ", (end - start) / 1000 * 1000, "ms", (end - start) / (1000*n_disconnected_graphs) * 1000, "ms/sample")
 
 
 

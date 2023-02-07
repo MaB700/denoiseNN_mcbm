@@ -54,8 +54,8 @@ class MyDataset(InMemoryDataset):
             data = T.ToUndirected()(data)
             data = T.Distance()(data)
             data = TimeDifference()(data) # might consider sign
-            data.pos = None
-            data.t = None
+            # data.pos = None
+            # data.t = None
 
         data, slices = self.collate(data_list)
         torch.save((data, slices), self.processed_paths[0])
