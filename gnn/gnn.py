@@ -11,11 +11,11 @@ import wandb
 wandb.init(entity="mabeyer", project="GNN_denoise") # , mode='disabled'
 
 
-reload = True
+reload = False
 num_samples = None
 num_samples_test = None
-node_distance = 7
-max_num_neighbors = 8
+node_distance = 12
+max_num_neighbors = 32
 
 batch_size = 256
 lr = 1e-3
@@ -42,7 +42,7 @@ train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = customGNN().to(device)
+model = customGNN(graph_iters=5).to(device)
 # model = Net(train_dataset[0], 32).to(device)
 model = model.to(torch.float)
 print(model)
@@ -121,7 +121,8 @@ model.load_state_dict(torch.load('model_best.pt'))
 model.eval()
 
 # data_test = CreateGraphDataset("../data_test.root:train", num_samples_test, dist=node_distance)
-data_test = mcbm_dataset.MyDataset(dataset="test", N = num_samples_test, reload=reload)
+data_test = mcbm_dataset.MyDataset( dataset="test", N = num_samples, reload=reload, \
+                                    radius = node_distance, max_num_neighbors = max_num_neighbors)
 test_loader = DataLoader(data_test, batch_size=batch_size)
 model.eval()
 y_true, y_pred = [], []
