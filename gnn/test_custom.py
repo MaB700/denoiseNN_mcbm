@@ -14,6 +14,8 @@ from helpers import *
 # from memory_profiler import profile
 
 from helpers_custom import *
+from helpers_quadrant import *
+import mcbm_dataset
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # print pytorch version
@@ -148,7 +150,10 @@ hparams.update({"hidden": 32})
 model = customGNN()
 # print(model)
 
-data = CreateGraphDataset('../data.root:train', 16, 3)
+# data = CreateGraphDataset('../data/data.root:train', 16, 3)
+data = CreateGraphDataset_quadrant('../data/data.root:train', 16, 7)
+# data = mcbm_dataset.MyDataset(  dataset="train", N = 16, reload=True, \
+#                                 radius = 7, max_num_neighbors = 8)
 data_loader_rich = DataLoader(data, batch_size=16)
 
 x = torch.randn(3, 3)
@@ -200,13 +205,13 @@ outx = session.run(None, {"nodes": input_datax[0].numpy(), "edge_index": input_d
 import time
 start = time.time()
 j = 0
-for i in range(10):
+for i in range(1000):
     if j == (n_disconnected_graphs - 1): 
         j = 0
     a = session.run(None, {"nodes": data[j].x.numpy(), "edge_index": data[j].edge_index.numpy()})[0]
     j += 1
 end = time.time()
-print("Average time of inference: ", (end - start) / 10 * 1000, "ms")
+print("Average time of inference: ", (end - start) / 1000 * 1000, "ms")
 
 start = time.time()
 for i in range(1000):

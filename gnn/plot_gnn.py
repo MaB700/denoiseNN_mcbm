@@ -1,12 +1,13 @@
 from helpers import *
-import networkx as nx
 import torch_geometric
 import matplotlib.pyplot as plt
 from torch_geometric.data.data import Data
+import torch_geometric.transforms as T
 import ipywidgets as widgets
 from ipywidgets import fixed
 import mcbm_dataset
 
+from helpers_quadrant import *
 
 r = 7.0
 max_neighbours = 8
@@ -28,8 +29,9 @@ def graph_plot(data, idx):
     # plt.show(block=True)
     plt.show()
 
-data = mcbm_dataset.MyDataset(dataset="test", N = 40, reload=True, radius=r, max_num_neighbors=max_neighbours)
-#data = CreateGraphDataset("../data.root:train", 100, dist=5)
+# data = mcbm_dataset.MyDataset(dataset="test", N = 40, reload=True, radius=r, max_num_neighbors=max_neighbours)
+data = CreateGraphDataset_quadrant("../data/data.root:train", 40, dist = 7)
+print(data[0].edge_index.numpy())
 #idx = 11
 tot_edge = 0
 for i in range(len(data)):
