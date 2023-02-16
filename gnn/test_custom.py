@@ -139,7 +139,7 @@ class ResAGNN(nn.Module):
         return self.edge_network(clf_inputs).squeeze(-1)
 
 hparams = torch.load("hyper_parameters.ckpt")
-hparams.update({"n_graph_iters": 3})
+hparams.update({"n_graph_iters": 5})
 hparams.update({"layernorm": False})
 hparams.update({"nb_edge_layer": 2})
 hparams.update({"nb_node_layer": 2})
@@ -147,7 +147,7 @@ hparams.update({"hidden": 32})
 # print content of .ckpt file
 # print(hparams)
 #model = ResAGNN(hparams)
-model = customGNN()
+model = customGNN(graph_iters=5, hidden_size=16)
 # print(model)
 
 # data = CreateGraphDataset('../data/data.root:train', 16, 3)

@@ -5,6 +5,7 @@ from torch_geometric.loader import DataLoader
 
 from helpers import *
 from helpers_custom import *
+from helpers_quadrant import *
 import mcbm_dataset
 
 import wandb
@@ -27,22 +28,22 @@ print("node_distance: ", node_distance, "max_num_neighbors: ", max_num_neighbors
 print("batch_size: ", batch_size, "learning rate: ", 1e-3)
 print("max_epochs: ", max_epochs, "es_patience: ", es_patience)
 
-# train_dataset, val_dataset = \
-#     torch.utils.data.random_split(CreateGraphDataset("../data.root:train", num_samples, dist = node_distance),
-#                                                     [0.8, 0.2],
-#                                                     generator=torch.Generator().manual_seed(123))
-
 train_dataset, val_dataset = \
-    torch.utils.data.random_split(mcbm_dataset.MyDataset(dataset="train", N = num_samples, reload=reload, \
-                                                         radius = node_distance, max_num_neighbors = max_num_neighbors),
+    torch.utils.data.random_split(CreateGraphDataset_quadrant("../data/data.root:train", num_samples, dist = 7),
                                                     [0.8, 0.2],
                                                     generator=torch.Generator().manual_seed(123))
+
+# train_dataset, val_dataset = \
+#     torch.utils.data.random_split(mcbm_dataset.MyDataset(dataset="train", N = num_samples, reload=reload, \
+#                                                          radius = node_distance, max_num_neighbors = max_num_neighbors),
+#                                                     [0.8, 0.2],
+#                                                     generator=torch.Generator().manual_seed(123))
 
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = customGNN(graph_iters=5).to(device)
+model = customGNN(graph_iters=5, hidden_size=16).to(device)
 # model = Net(train_dataset[0], 32).to(device)
 model = model.to(torch.float)
 print(model)
@@ -120,9 +121,9 @@ del train_loader, val_loader, train_dataset, val_dataset
 model.load_state_dict(torch.load('model_best.pt'))
 model.eval()
 
-# data_test = CreateGraphDataset("../data_test.root:train", num_samples_test, dist=node_distance)
-data_test = mcbm_dataset.MyDataset( dataset="test", N = num_samples, reload=reload, \
-                                    radius = node_distance, max_num_neighbors = max_num_neighbors)
+data_test = CreateGraphDataset_quadrant("../data/data_test.root:train", num_samples_test, dist=7)
+# data_test = mcbm_dataset.MyDataset( dataset="test", N = num_samples, reload=reload, \
+#                                     radius = node_distance, max_num_neighbors = max_num_neighbors)
 test_loader = DataLoader(data_test, batch_size=batch_size)
 model.eval()
 y_true, y_pred = [], []

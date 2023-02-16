@@ -58,39 +58,39 @@ def scatter_add_attention(encoded_nodes, encoded_edges, edge_list):
     return aggr_nodes
 
 class customGNN(nn.Module):
-    def __init__(self, graph_iters = 3):
+    def __init__(self, graph_iters = 3, hidden_size = 16):
         super(customGNN, self).__init__()
 
         self.graph_iters = graph_iters
         # Setup node encoder
         self.node_encoder = make_mlp(
             input_size=3, 
-            output_size=32,
-            hidden_size=32,
+            output_size=hidden_size,
+            hidden_size=hidden_size,
             num_layers=1,
             output_activation=None
         )
 
         # The edge network computes new edge features from connected nodes
         self.edge_network = nn.ModuleList(make_mlp(
-            input_size=2*(32+3),
+            input_size=2*(hidden_size+3),
             output_size=1,
-            hidden_size=32,
+            hidden_size=hidden_size,
             num_layers=3
         ) for _ in range(self.graph_iters))
 
         # The node network computes new node features
         self.node_network = nn.ModuleList(make_mlp(
-            input_size=2*(32+3),
-            output_size=32,
-            hidden_size=32,
+            input_size=2*(hidden_size+3),
+            output_size=hidden_size,
+            hidden_size=hidden_size,
             num_layers=3,
         ) for _ in range(self.graph_iters - 1))
 
         self.node_out_network = make_mlp(
-            input_size=2*(32+3),
+            input_size=2*(hidden_size+3),
             output_size=1,
-            hidden_size=32,
+            hidden_size=hidden_size,
             num_layers=3,
             output_activation="Sigmoid"
         )
