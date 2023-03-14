@@ -66,7 +66,7 @@ val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shu
 #         return x
 
 class UNet(nn.Module):
-    def __init__(self, cl=[8, 16, 16, 32], bnorm=True):
+    def __init__(self, cl=[2, 4, 8, 16], bnorm=False):
         super(UNet, self).__init__()
         
         self.c1 = nn.Sequential(
@@ -315,7 +315,7 @@ device = torch.device('cpu')
 model = model.to(device)
 x = torch.rand(1, 1, 72, 32)
 dynamic_axes = {"input": {0: 'batch_size'}, "output": {0: 'batch_size'}}
-torch.onnx.export(model, x, "unet.onnx", input_names=["input"], output_names=["output"], dynamic_axes=dynamic_axes)
+torch.onnx.export(model, x, "unet_small.onnx", input_names=["input"], output_names=["output"], dynamic_axes=dynamic_axes)
 
 
 
