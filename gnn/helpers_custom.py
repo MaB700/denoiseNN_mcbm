@@ -46,7 +46,9 @@ def scatter_add_attention(encoded_nodes, encoded_edges, edge_list):
     src = encoded_nodes[end]*encoded_edges
     # src = encoded_nodes[end]
     index = start.unsqueeze(-1)
-    in_messages = torch.zeros(encoded_nodes.shape, dtype=src.dtype, device=encoded_nodes.device).scatter_add(0, index.repeat((1,src.shape[1])), src) 
+    in_messages = torch.zeros(encoded_nodes.shape, dtype=src.dtype, device=encoded_nodes.device).scatter(0, index.repeat((1,src.shape[1])), src) 
+    # in_messages = torch.zeros(encoded_nodes.shape, dtype=src.dtype, device=encoded_nodes.device).scatter_reduce(0, index.repeat((1,src.shape[1])), src, reduce="mean")
+    # in_messages = torch.zeros(encoded_nodes.shape, dtype=src.dtype, device=encoded_nodes.device).scatter_reduce(0, index.repeat((1,src.shape[1])), src, reduce="amax")
 
     src = encoded_nodes[start]*encoded_edges
     # src = encoded_nodes[start]

@@ -1,5 +1,4 @@
 import os  
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 import numpy as np
 import time
 import uproot
@@ -30,7 +29,7 @@ class MyDataset(torch.utils.data.Dataset):
     return self.x[idx], self.y[idx]
 
 
-train_dataset, val_dataset = torch.utils.data.random_split( MyDataset("../data.root", num_samples),
+train_dataset, val_dataset = torch.utils.data.random_split( MyDataset("../data/data.root", num_samples),
                                                             [0.8, 0.2],
                                                             generator=torch.Generator().manual_seed(123))
 
@@ -65,6 +64,85 @@ val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shu
 #         x = self.encoder(x)
 #         x = self.decoder(x)
 #         return x
+
+class UNet(nn.Module):
+    def __init__(self, cl=[8, 16, 16, 32], bnorm=True):
+        super(UNet, self).__init__()
+        
+        self.c1 = nn.Sequential(
+            nn.Conv2d(1, cl[0], kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.BatchNorm2d(cl[0]) if bnorm else nn.Identity()
+        )
+        self.p1 = nn.MaxPool2d(kernel_size=2)
+        
+        self.c2 = nn.Sequential(
+            nn.Conv2d(cl[0], cl[1], kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.BatchNorm2d(cl[1]) if bnorm else nn.Identity()
+        )
+        self.p2 = nn.MaxPool2d(kernel_size=2)
+        
+        self.c3 = nn.Sequential(
+            nn.Conv2d(cl[1], cl[2], kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.BatchNorm2d(cl[2]) if bnorm else nn.Identity()
+        )
+        self.p3 = nn.MaxPool2d(kernel_size=2)
+        
+        self.mid = nn.Sequential(
+            nn.Conv2d(cl[2], cl[3], kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.BatchNorm2d(cl[3]) if bnorm else nn.Identity()
+        )
+        
+        self.u10 = nn.ConvTranspose2d(cl[3], cl[3], kernel_size=3, stride=2, padding=1, output_padding=1)
+        self.c10 = nn.Sequential(
+            nn.Conv2d(cl[3]+cl[2], cl[2], kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.BatchNorm2d(cl[2]) if bnorm else nn.Identity()
+        )
+        
+        self.u11 = nn.ConvTranspose2d(cl[2], cl[2], kernel_size=3, stride=2, padding=1, output_padding=1)
+        self.c11 = nn.Sequential(
+            nn.Conv2d(cl[2]+cl[1], cl[1], kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.BatchNorm2d(cl[1]) if bnorm else nn.Identity()
+        )
+        
+        self.u12 = nn.ConvTranspose2d(cl[1], cl[1], kernel_size=3, stride=2, padding=1, output_padding=1)
+        self.c12 = nn.Sequential(
+            nn.Conv2d(cl[1]+cl[0], cl[0], kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.BatchNorm2d(cl[0]) if bnorm else nn.Identity()
+        )
+        
+        self.c13 = nn.Sequential(
+            nn.Conv2d(cl[0]+1, cl[0], kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.BatchNorm2d(cl[0]) if bnorm else nn.Identity(),
+            nn.Conv2d(cl[0], 1, kernel_size=3, padding=1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        c1 = self.c1(x)
+        p1 = self.p1(c1)
+        c2 = self.c2(p1)
+        p2 = self.p2(c2)
+        c3 = self.c3(p2)
+        p3 = self.p3(c3)
+        mid = self.mid(p3)
+        u10 = self.u10(mid)
+        c10 = self.c10(torch.cat([u10, c3], dim=1))
+        u11 = self.u11(c10)
+        c11 = self.c11(torch.cat([u11, c2], dim=1))
+        u12 = self.u12(c11)
+        c12 = self.c12(torch.cat([u12, c1], dim=1))
+        c13 = self.c13(torch.cat([c12, x], dim=1))
+        return c13
+    
+                          
 
 class Stacked(nn.Module):
     def __init__(self):
@@ -158,7 +236,8 @@ early_stop_counter = 0
 # Set up the model, loss function, and optimizer
 # Create an instance of the model
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = Stacked().to(device)
+# model = Stacked().to(device)
+model = UNet().to(device)
 #loss_fn = torch.nn.BCELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
@@ -236,7 +315,7 @@ device = torch.device('cpu')
 model = model.to(device)
 x = torch.rand(1, 1, 72, 32)
 dynamic_axes = {"input": {0: 'batch_size'}, "output": {0: 'batch_size'}}
-torch.onnx.export(model, x, "model.onnx", input_names=["input"], output_names=["output"], dynamic_axes=dynamic_axes)
+torch.onnx.export(model, x, "unet.onnx", input_names=["input"], output_names=["output"], dynamic_axes=dynamic_axes)
 
 
 

@@ -10,7 +10,7 @@ from torch_geometric.data.data import Data
 from torch.nn import Sequential, Linear, ReLU, ModuleList, Sigmoid
 from torch_geometric.nn import MessagePassing, MetaLayer, LayerNorm
 from torch_scatter import scatter_mean, scatter_sum, scatter_max, scatter_min, scatter_add
-from torch_geometric.nn import GCNConv, ARMAConv, GENConv, GeneralConv, global_mean_pool
+from torch_geometric.nn import GCNConv, ARMAConv, GENConv, GeneralConv, global_mean_pool, GATConv
 import torch_geometric.nn as geonn
 import uproot
 from sklearn.metrics import roc_auc_score, confusion_matrix, roc_curve
@@ -93,23 +93,23 @@ class Net(torch.nn.Module):
         super(Net, self).__init__()
 
         self.node_encoder = nn.Linear(data.x.size(-1), hidden_nodes)
-        #self.edge_encoder = nn.Linear(data.edge_attr.size(-1), hidden_nodes)
+        self.edge_encoder = nn.Linear(data.edge_attr.size(-1), hidden_nodes)
         
-        self.conv1 = geonn.ResGatedGraphConv(hidden_nodes, hidden_nodes)
-        self.conv2 = geonn.ResGatedGraphConv(hidden_nodes, hidden_nodes)
-        self.conv3 = geonn.ResGatedGraphConv(hidden_nodes, hidden_nodes)
-        self.conv4 = geonn.ResGatedGraphConv(hidden_nodes, 1)    
+        self.conv1 = geonn.GATConv(hidden_nodes, hidden_nodes, heads=4, concat=False, fill_value='add')
+        self.conv2 = geonn.GATConv(hidden_nodes, hidden_nodes, heads=4, concat=False, fill_value='add')
+        self.conv3 = geonn.GATConv(hidden_nodes, hidden_nodes, heads=4, concat=False, fill_value='add')
+        self.conv4 = geonn.GATConv(hidden_nodes, 1, fill_value='add') 
 
         # self.double()
 
-    def forward(self, x, edge_index, edge_attr=None):        
+    def forward(self, x, edge_index, edge_attr):        
         x = self.node_encoder(x)
-        #edge_attr = self.edge_encoder(edge_attr)
+        edge_attr = self.edge_encoder(edge_attr)
 
-        x = F.relu(self.conv1(x, edge_index))
-        x = F.relu(self.conv2(x, edge_index))
-        x = F.relu(self.conv3(x, edge_index))
-        return torch.sigmoid(self.conv4(x, edge_index))
+        x = x + F.relu(self.conv1(x, edge_index, edge_attr))
+        x = x + F.relu(self.conv2(x, edge_index, edge_attr))
+        x = x + F.relu(self.conv3(x, edge_index, edge_attr))
+        return torch.sigmoid(self.conv4(x, edge_index, edge_attr))
 
 class LogWandb():
     def __init__(self, gt, pred):

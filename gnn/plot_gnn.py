@@ -21,7 +21,7 @@ data = CreateGraphDataset_quadrant("../data/data_test.root:train", 100, dist = 7
 device = torch.device('cpu')
 model = customGNN(graph_iters=5, hidden_size=16).to(device)
 model = model.to(torch.float)
-model.load_state_dict(torch.load('model_best.pt'))
+model.load_state_dict(torch.load('model_best_c.pt'))
 model.eval()
 
 def graph_plot(data, idx):
