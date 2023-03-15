@@ -11,7 +11,7 @@ from sklearn.metrics import roc_auc_score
 # Set up some hyperparameters
 num_samples = None # sum of train and val
 batch_size = 256
-max_epochs = 15
+max_epochs = 150
 patience = 3
 
 class MyDataset(torch.utils.data.Dataset):
@@ -66,7 +66,7 @@ val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shu
 #         return x
 
 class UNet(nn.Module):
-    def __init__(self, cl=[2, 4, 8, 16], bnorm=False):
+    def __init__(self, cl=[8, 8, 16, 32], bnorm=True):
         super(UNet, self).__init__()
         
         self.c1 = nn.Sequential(
@@ -291,9 +291,11 @@ for epoch in range(max_epochs):
             break
     else:
         best_val_loss = val_loss
+        torch.save(model.state_dict(), "model_best_cnn.pt")
         early_stop_counter = 0
 
 # calculate the AUC score on the test set using the val_loader
+model.load_state_dict(torch.load('model_best_cnn.pt'))
 model.eval()
 y_true, y_pred = [], []
 
@@ -315,7 +317,7 @@ device = torch.device('cpu')
 model = model.to(device)
 x = torch.rand(1, 1, 72, 32)
 dynamic_axes = {"input": {0: 'batch_size'}, "output": {0: 'batch_size'}}
-torch.onnx.export(model, x, "unet_small.onnx", input_names=["input"], output_names=["output"], dynamic_axes=dynamic_axes)
+torch.onnx.export(model, x, "unet_full_mse.onnx", input_names=["input"], output_names=["output"], dynamic_axes=dynamic_axes)
 
 
 
