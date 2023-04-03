@@ -139,7 +139,7 @@ class ResAGNN(nn.Module):
         return self.edge_network(clf_inputs).squeeze(-1)
 
 hparams = torch.load("hyper_parameters.ckpt")
-hparams.update({"n_graph_iters": 5})
+hparams.update({"n_graph_iters": 3})
 hparams.update({"layernorm": False})
 hparams.update({"nb_edge_layer": 2})
 hparams.update({"nb_node_layer": 2})
@@ -147,14 +147,14 @@ hparams.update({"hidden": 32})
 # print content of .ckpt file
 # print(hparams)
 #model = ResAGNN(hparams)
-model = customGNN(graph_iters=5, hidden_size=16)
+model = customGNN(graph_iters=3, hidden_size=16)
 # print(model)
 
 # data = CreateGraphDataset('../data/data.root:train', 16, 3)
-data = CreateGraphDataset_quadrant('../data/data.root:train', 16, 7)
+data = CreateGraphDataset_quadrant('../data/data.root:train', 1000, 7)
 # data = mcbm_dataset.MyDataset(  dataset="train", N = 16, reload=True, \
 #                                 radius = 7, max_num_neighbors = 8)
-data_loader_rich = DataLoader(data, batch_size=16)
+data_loader_rich = DataLoader(data, batch_size=1)
 
 x = torch.randn(3, 3)
 x2 = torch.randn(10, 3)
@@ -181,7 +181,7 @@ ONNX_FILE_PATH = "ResAGNN_model.onnx"
 dynamic_axes = {"nodes": [0, 1], "edge_index": [0, 1]}
 
 # dynamic_axes = {"nodes": {0: "num_nodes", 1:"node_features"}, "edge_index": {1: "num_edges"}, "output": {0: "num_nodes"}}
-torch.onnx.export(model, input_data, ONNX_FILE_PATH, input_names=["nodes", "edge_index"], opset_version=16,
+torch.onnx.export(model, input_data, ONNX_FILE_PATH, input_names=["nodes", "edge_index"], opset_version=18,
                   output_names=["output"], export_params=True, dynamic_axes=dynamic_axes)
 
 expected = model(*input_data)
@@ -193,7 +193,7 @@ options = ort.SessionOptions()
 # options.add_session_config_entry("session.set_denormal_as_zero", "1")
 options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
 options.intra_op_num_threads = 1 # athena uses 1
-options.inter_op_num_threads = 8
+options.inter_op_num_threads = 1
 options.enable_profiling = False
 options.execution_mode.ORT_SEQUENTIAL
 session = ort.InferenceSession(ONNX_FILE_PATH, sess_options=options)
@@ -203,21 +203,27 @@ out3 = session.run(None, {"nodes": input_data3[0].numpy(), "edge_index": input_d
 outx = session.run(None, {"nodes": input_datax[0].numpy(), "edge_index": input_datax[1].numpy()})[0]
 
 import time
-start = time.time()
-j = 0
+# start = time.time()
+# j = 0
+# for i in range(1000):
+#     if j == (n_disconnected_graphs - 1): 
+#         j = 0
+#     a = session.run(None, {"nodes": data[j].x.numpy(), "edge_index": data[j].edge_index.numpy()})[0]
+#     j += 1
+# end = time.time()
+# print("Average time of inference: ", (end - start) / 1000 * 1000, "ms")
+
+x_list = []
+edge_index_list = []
 for i in range(1000):
-    if j == (n_disconnected_graphs - 1): 
-        j = 0
-    a = session.run(None, {"nodes": data[j].x.numpy(), "edge_index": data[j].edge_index.numpy()})[0]
-    j += 1
-end = time.time()
-print("Average time of inference: ", (end - start) / 1000 * 1000, "ms")
+    x_list.append(data[i].x.detach().numpy())
+    edge_index_list.append(data[i].edge_index.detach().numpy())
 
 start = time.time()
 for i in range(1000):
-    a = session.run(None, {"nodes": input_datax[0].numpy(), "edge_index": input_datax[1].numpy()})[0]
+    a = session.run(None, {"nodes": x_list[i], "edge_index": edge_index_list[i]})[0]
 end = time.time()
-print("Average time of inference x: ", (end - start) / 1000 * 1000, "ms", (end - start) / (1000*n_disconnected_graphs) * 1000, "ms/sample")
+print("Average time of inference x: ", (end - start) / 1000 * 1000, "ms")
 
 
 
