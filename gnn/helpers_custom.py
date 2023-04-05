@@ -46,21 +46,23 @@ def scatter_add_attention(encoded_nodes, encoded_edges, edge_list):
     src = encoded_nodes[end]*encoded_edges
     # src = encoded_nodes[end]
     index = start.unsqueeze(-1)
-    in_messages = torch.zeros(encoded_nodes.shape, dtype=src.dtype, device=encoded_nodes.device).scatter_add(0, index.repeat((1,src.shape[1])), src) 
-    # in_messages = torch.zeros(encoded_nodes.shape, dtype=src.dtype, device=encoded_nodes.device).scatter_reduce(0, index.repeat((1,src.shape[1])), src, reduce="mean")
+    in_messages = torch.zeros(encoded_nodes.shape, dtype=src.dtype, device=encoded_nodes.device).scatter_add_(0, index.repeat((1,src.shape[1])), src)
+    # denom = torch.zeros(encoded_nodes.shape, dtype=src.dtype, device=encoded_nodes.device).scatter_add_(0, index.repeat((1,src.shape[1])), torch.ones_like(src))
+    # in_messages = in_messages/denom
+    # in_messages = torch.zeros(encoded_nodes.shape, dtype=src.dtype, device=encoded_nodes.device).scatter_reduce_(0, index.repeat((1,src.shape[1])), src, reduce="sum")
     # in_messages = torch.zeros(encoded_nodes.shape, dtype=src.dtype, device=encoded_nodes.device).scatter_reduce(0, index.repeat((1,src.shape[1])), src, reduce="amax")
 
-    src = encoded_nodes[start]*encoded_edges
-    # src = encoded_nodes[start]
-    index = end.unsqueeze(-1)
-    out_messages = torch.zeros(encoded_nodes.shape, dtype=src.dtype, device=encoded_nodes.device).scatter_add(0, index.repeat((1,src.shape[1])), src) 
+    # src = encoded_nodes[start]*encoded_edges
+    # # src = encoded_nodes[start]
+    # index = end.unsqueeze(-1)
+    # out_messages = torch.zeros(encoded_nodes.shape, dtype=src.dtype, device=encoded_nodes.device).scatter_add_(0, index.repeat((1,src.shape[1])), src) 
     
-    aggr_nodes = in_messages + out_messages
+    aggr_nodes = in_messages # + out_messages
     
     return aggr_nodes
 
 class customGNN(nn.Module):
-    def __init__(self, graph_iters = 3, hidden_size = 16):
+    def __init__(self, graph_iters = 3, hidden_size = 16, num_layers = 3):
         super(customGNN, self).__init__()
 
         self.graph_iters = graph_iters
@@ -78,7 +80,7 @@ class customGNN(nn.Module):
             input_size=2*(hidden_size+3),
             output_size=1,
             hidden_size=hidden_size,
-            num_layers=3
+            num_layers=num_layers
         ) for _ in range(self.graph_iters))
 
         # The node network computes new node features
@@ -86,14 +88,14 @@ class customGNN(nn.Module):
             input_size=2*(hidden_size+3),
             output_size=hidden_size,
             hidden_size=hidden_size,
-            num_layers=3,
+            num_layers=num_layers,
         ) for _ in range(self.graph_iters - 1))
 
         self.node_out_network = make_mlp(
             input_size=2*(hidden_size+3),
             output_size=1,
             hidden_size=hidden_size,
-            num_layers=3,
+            num_layers=num_layers,
             output_activation="Sigmoid"
         )
 

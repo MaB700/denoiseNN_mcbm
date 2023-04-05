@@ -147,11 +147,11 @@ hparams.update({"hidden": 32})
 # print content of .ckpt file
 # print(hparams)
 #model = ResAGNN(hparams)
-model = customGNN(graph_iters=3, hidden_size=16)
+model = customGNN(graph_iters=3, hidden_size=16, num_layers=3)
 # print(model)
 
 # data = CreateGraphDataset('../data/data.root:train', 16, 3)
-data = CreateGraphDataset_quadrant('../data/data.root:train', 1000, 7)
+data = CreateGraphDataset_quadrant('../data/data.root:train', 10000, 7)
 # data = mcbm_dataset.MyDataset(  dataset="train", N = 16, reload=True, \
 #                                 radius = 7, max_num_neighbors = 8)
 data_loader_rich = DataLoader(data, batch_size=1)
@@ -181,7 +181,7 @@ ONNX_FILE_PATH = "ResAGNN_model.onnx"
 dynamic_axes = {"nodes": [0, 1], "edge_index": [0, 1]}
 
 # dynamic_axes = {"nodes": {0: "num_nodes", 1:"node_features"}, "edge_index": {1: "num_edges"}, "output": {0: "num_nodes"}}
-torch.onnx.export(model, input_data, ONNX_FILE_PATH, input_names=["nodes", "edge_index"], opset_version=18,
+torch.onnx.export(model, input_data, ONNX_FILE_PATH, input_names=["nodes", "edge_index"], opset_version=16,
                   output_names=["output"], export_params=True, dynamic_axes=dynamic_axes)
 
 expected = model(*input_data)
@@ -215,15 +215,15 @@ import time
 
 x_list = []
 edge_index_list = []
-for i in range(1000):
+for i in range(len(data)):
     x_list.append(data[i].x.detach().numpy())
     edge_index_list.append(data[i].edge_index.detach().numpy())
 
 start = time.time()
-for i in range(1000):
+for i in range(len(data)):
     a = session.run(None, {"nodes": x_list[i], "edge_index": edge_index_list[i]})[0]
 end = time.time()
-print("Average time of inference x: ", (end - start) / 1000 * 1000, "ms")
+print("Average time of inference x: ", (end - start) *1000 / len(data), "ms")
 
 
 
