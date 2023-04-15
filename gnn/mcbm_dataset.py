@@ -54,6 +54,7 @@ class MyDataset(InMemoryDataset):
             data = T.ToUndirected()(data)
             data = T.Distance()(data)
             data = TimeDifference()(data) # might consider sign
+            data = T.RemoveIsolatedNodes()(data)
             # data.pos = None
             # data.t = None
 
@@ -89,7 +90,7 @@ class MyDataset(InMemoryDataset):
                     pos=torch.from_numpy(pos).float(),
                     t=torch.from_numpy(t).float())
 
-    def rm_edges(self, data, delta_t = 5.0):
+    def rm_edges(self, data, delta_t = 3.0):
         src_time = torch.index_select(data.t, 0, data.edge_index[0,:]).view(-1)
         target_time = torch.index_select(data.t, 0, data.edge_index[1,:]).view(-1)
         data.edge_index = data.edge_index[:, torch.abs(src_time - target_time) <= delta_t]

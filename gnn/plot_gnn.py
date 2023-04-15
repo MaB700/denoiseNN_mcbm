@@ -11,17 +11,17 @@ from helpers_quadrant import *
 reload = False
 num_samples = None
 num_samples_test = None
-node_distance = 7
-max_num_neighbors = 4
+node_distance = 9
+max_num_neighbors = 16
 
-# data = mcbm_dataset.MyDataset(  dataset="test", N = 100, reload=True, \
-#                                 radius = node_distance, max_num_neighbors = max_num_neighbors)
-data = CreateGraphDataset_quadrant("../data/data_test.root:train", 100, dist = 7)
+data = mcbm_dataset.MyDataset(  dataset="test", N = 100, reload=True, \
+                                radius = node_distance, max_num_neighbors = max_num_neighbors)
+# data = CreateGraphDataset_quadrant("../data/data_test.root:train", 100, dist = 7)
 
 device = torch.device('cpu')
-model = customGNN(graph_iters=5, hidden_size=16).to(device)
+model = customGNN(graph_iters=3, hidden_size=16).to(device)
 model = model.to(torch.float)
-model.load_state_dict(torch.load('model_best_c.pt'))
+# model.load_state_dict(torch.load('model_best_c.pt'))
 model.eval()
 
 def graph_plot(data, idx):
@@ -72,7 +72,7 @@ data_out = []
 
 for i in range(len(data_in)):
     d = data_in[i].to(device)
-    out = model(d.x, d.edge_index).detach().cpu().numpy().tolist()
+    out = model(d.x, d.edge_index, d.edge_attr).detach().cpu().numpy().tolist()
     data_out.append(out)
 
 # print(data_out)
