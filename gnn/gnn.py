@@ -43,8 +43,9 @@ train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-# model = customGNN(graph_iters=5, hidden_size=16).to(device)
-model = Net(train_dataset[0], 32).to(device)
+# model = customGNN(graph_iters=3, hidden_size=16).to(device)
+# model = Net(train_dataset[0], 32).to(device)
+model = MyModel().to(device)
 model = model.to(torch.float)
 print(model)
 optimizer = torch.optim.Adam(model.parameters(), lr=lr)
@@ -56,7 +57,7 @@ def train_step():
     i = 0.0
     for data in train_loader:
         data = data.to(device)
-        output = model(data.x, data.batch)
+        output = model(data.x, data.edge_index)
         loss = F.binary_cross_entropy(output, data.y, reduction="mean")
         all_loss += loss.item()
         all_acc += accuracy(data.y, output)
@@ -74,7 +75,7 @@ def evaluate(loader):
     i = 0.0
     for data in loader:
         data = data.to(device)
-        output = model(data.x, data.batch)
+        output = model(data.x, data.edge_index)
         loss = F.binary_cross_entropy(output, data.y, reduction="mean")
         all_loss += loss.item()
         all_acc += accuracy(data.y, output)
@@ -110,7 +111,7 @@ def predict(loader):
     prd = np.empty((0))
     for data in loader :
         data = data.to(device)
-        pred = model(data.x, data.batch).cpu().detach().numpy()
+        pred = model(data.x, data.edge_index).cpu().detach().numpy()
         target = data.y.cpu().detach().numpy()
         tar = np.append(tar, target)
         prd = np.append(prd, np.array(pred))
@@ -131,7 +132,7 @@ y_true, y_pred = [], []
 with torch.no_grad():
     for data in test_loader:
         data = data.to(device)
-        output = model(data.x, data.batch)
+        output = model(data.x, data.edge_index)
         y_true.extend(data.y.cpu().numpy())
         y_pred.extend(output.cpu().numpy())
 

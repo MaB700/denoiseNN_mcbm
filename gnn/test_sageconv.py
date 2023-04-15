@@ -6,14 +6,13 @@ import time
 from helpers_quadrant import *
 # print pytorch version
 print(torch.__version__)
-#TODO: add dynamic axis test
 
 class MyModel(torch.nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv1 = SAGEConv(3, 16, project=True, aggr="add")
-        self.conv2 = SAGEConv(16, 16, project=True, aggr="add")
-        self.conv3 = SAGEConv(16, 1, project=True, aggr="add")
+        self.conv1 = SAGEConv(3, 16, project=True, aggr="mean")
+        self.conv2 = SAGEConv(16, 16, project=True, aggr="mean")
+        self.conv3 = SAGEConv(16, 1, project=True, aggr="mean")
 
     def forward(self, x, edge_index):
         x = self.conv1(x, edge_index).relu()

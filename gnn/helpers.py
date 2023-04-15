@@ -9,6 +9,7 @@ import torch.nn.functional as F
 from torch_geometric.data.data import Data
 from torch.nn import Sequential, Linear, ReLU, ModuleList, Sigmoid
 from torch_geometric.nn import MessagePassing, MetaLayer, LayerNorm
+from torch_geometric.nn import SAGEConv
 import torch_geometric.nn as geonn
 import uproot
 from sklearn.metrics import roc_auc_score, confusion_matrix, roc_curve
@@ -93,6 +94,18 @@ def MLP(channels, batch_norm=True):
                 nn.BatchNorm1d(channels[i]) if batch_norm else nn.Identity)
             for i in range(1, len(channels))
         ])
+
+class MyModel(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.conv1 = SAGEConv(3, 16, project=True, aggr="add")
+        self.conv2 = SAGEConv(16, 16, project=True, aggr="add")
+        self.conv3 = SAGEConv(16, 1, project=True, aggr="add")
+
+    def forward(self, x, edge_index):
+        x = self.conv1(x, edge_index).relu()
+        x = self.conv2(x, edge_index).relu()
+        return self.conv3(x, edge_index).sigmoid()
 
 class Net(torch.nn.Module):
     def __init__(self, data, hidden_nodes):

@@ -21,132 +21,6 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 # print pytorch version
 print(torch.__version__)
 # model to .onnx works properly with pytorch 1.13
-
-def make_mlp(
-    input_size,
-    sizes,
-    hidden_activation="ReLU",
-    output_activation="ReLU",
-    layer_norm=False,
-):
-    """Construct an MLP with specified fully-connected layers."""
-    hidden_activation = getattr(nn, hidden_activation)
-    if output_activation is not None:
-        output_activation = getattr(nn, output_activation)
-    layers = []
-    n_layers = len(sizes)
-    sizes = [input_size] + sizes
-    # Hidden layers
-    for i in range(n_layers - 1):
-        layers.append(nn.Linear(sizes[i], sizes[i + 1]))
-        if layer_norm:
-            layers.append(nn.LayerNorm(sizes[i + 1]))
-        layers.append(hidden_activation())
-    # Final layer
-    layers.append(nn.Linear(sizes[-2], sizes[-1]))
-    if output_activation is not None:
-        if layer_norm:
-            layers.append(nn.LayerNorm(sizes[-1]))
-        layers.append(output_activation())
-    return nn.Sequential(*layers)
-
-def scatter_add_attention(encoded_nodes, encoded_edges, edge_list):
-    start, end = edge_list[0], edge_list[1]
-
-    src = encoded_nodes[end]*encoded_edges
-    index = start.unsqueeze(-1)
-    in_messages = torch.zeros(encoded_nodes.shape, dtype=src.dtype, device=encoded_nodes.device).scatter_add(0, index.repeat((1,src.shape[1])), src) 
-
-    src = encoded_nodes[start]*encoded_edges
-    index = end.unsqueeze(-1)
-    out_messages = torch.zeros(encoded_nodes.shape, dtype=src.dtype, device=encoded_nodes.device).scatter_add(0, index.repeat((1,src.shape[1])), src) 
-    
-    aggr_nodes = in_messages + out_messages
-    
-    return aggr_nodes
-
-class ResAGNN(nn.Module):
-    def __init__(self, hparams):
-        super(ResAGNN, self).__init__()
-        """
-        Initialise the Lightning Module that can scan over different GNN training regimes
-        """
-        
-        self.hparams = hparams
-        
-        # Setup input network
-        self.node_encoder = make_mlp(
-            hparams["in_channels"],
-            [hparams["hidden"]],
-            output_activation=hparams["hidden_activation"],
-            layer_norm=hparams["layernorm"],
-        )
-
-        # The edge network computes new edge features from connected nodes
-        self.edge_network = make_mlp(
-            2 * (hparams["in_channels"] + hparams["hidden"]),
-            [hparams["hidden"]] * hparams["nb_edge_layer"] + [1],
-            layer_norm=hparams["layernorm"],
-            output_activation=None,
-            hidden_activation=hparams["hidden_activation"],
-        )
-
-        # The node network computes new node features
-        self.node_network = make_mlp(
-            (hparams["in_channels"] + hparams["hidden"]) * 2,
-            [hparams["hidden"]] * hparams["nb_node_layer"],
-            layer_norm=hparams["layernorm"],
-            output_activation=None,
-            hidden_activation=hparams["hidden_activation"],
-        )
-
-    def forward(self, x, edge_index):
-
-        # Encode the graph features into the hidden space
-        input_x = x
-        x = self.node_encoder(x) # [num_nodes, 3] -> [num_nodes, hidden]
-        x = torch.cat([x, input_x], dim=-1) # 
-
-        start, end = edge_index[0], edge_index[1]
-
-        # Loop over iterations of edge and node networks
-        for i in range(self.hparams["n_graph_iters"]):
-            # Previous hidden state
-            x0 = x # for skip connection
-
-            # Compute new edge score
-            edge_inputs = torch.cat([x[start], x[end]], dim=1)
-            e = self.edge_network(edge_inputs)
-            e = torch.sigmoid(e)
-
-            # Sum weighted node features coming into each node
-            #             weighted_messages_in = scatter_add(e * x[start], end, dim=0, dim_size=x.shape[0])
-            #             weighted_messages_out = scatter_add(e * x[end], start, dim=0, dim_size=x.shape[0])
-
-            weighted_messages = scatter_add_attention(x, e, edge_index)
-
-            # Compute new node features
-            #             node_inputs = torch.cat([x, weighted_messages_in, weighted_messages_out], dim=1)
-            node_inputs = torch.cat([x, weighted_messages], dim=1)
-            x = self.node_network(node_inputs)
-
-            # Residual connection
-            x = torch.cat([x, input_x], dim=-1)
-            x = x + x0
-
-        # Compute final edge scores; use original edge directions only
-        clf_inputs = torch.cat([x[start], x[end]], dim=1)
-        return self.edge_network(clf_inputs).squeeze(-1)
-
-hparams = torch.load("hyper_parameters.ckpt")
-hparams.update({"n_graph_iters": 3})
-hparams.update({"layernorm": False})
-hparams.update({"nb_edge_layer": 2})
-hparams.update({"nb_node_layer": 2})
-hparams.update({"hidden": 32})
-# print content of .ckpt file
-# print(hparams)
-#model = ResAGNN(hparams)
 model = customGNN(graph_iters=3, hidden_size=16, num_layers=3)
 # print(model)
 
@@ -177,7 +51,7 @@ input_data2 = (x2, edge_index2)
 input_data3 = (data[0].x, data[0].edge_index)
 input_datax = (datax.x, datax.edge_index)
 print(datax.edge_index.shape)
-ONNX_FILE_PATH = "ResAGNN_model.onnx"
+ONNX_FILE_PATH = "custom.onnx"
 dynamic_axes = {"nodes": [0, 1], "edge_index": [0, 1]}
 
 # dynamic_axes = {"nodes": {0: "num_nodes", 1:"node_features"}, "edge_index": {1: "num_edges"}, "output": {0: "num_nodes"}}

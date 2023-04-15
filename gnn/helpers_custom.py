@@ -52,11 +52,11 @@ def scatter_add_attention(encoded_nodes, encoded_edges, edge_list):
     # in_messages = torch.zeros(encoded_nodes.shape, dtype=src.dtype, device=encoded_nodes.device).scatter_reduce_(0, index.repeat((1,src.shape[1])), src, reduce="sum")
     # in_messages = torch.zeros(encoded_nodes.shape, dtype=src.dtype, device=encoded_nodes.device).scatter_reduce(0, index.repeat((1,src.shape[1])), src, reduce="amax")
 
-    # src = encoded_nodes[start]*encoded_edges
+    #src = encoded_nodes[start]*encoded_edges
     # # src = encoded_nodes[start]
-    # index = end.unsqueeze(-1)
-    # out_messages = torch.zeros(encoded_nodes.shape, dtype=src.dtype, device=encoded_nodes.device).scatter_add_(0, index.repeat((1,src.shape[1])), src) 
-    
+    #index = end.unsqueeze(-1)
+    #out_messages = torch.zeros(encoded_nodes.shape, dtype=src.dtype, device=encoded_nodes.device).scatter_add_(0, index.repeat((1,src.shape[1])), src) 
+    #TODO: multi aggregation
     aggr_nodes = in_messages # + out_messages
     
     return aggr_nodes
@@ -102,6 +102,7 @@ class customGNN(nn.Module):
 
     def forward(self, x, edge_index): #, data
         # Encode the graph features into the hidden space
+        #TODO: add simple node encoding
         input_x = x
         x = self.node_encoder(x) # [num_nodes, 3] -> [num_nodes, hidden]
         x = torch.cat([x, input_x], dim=-1) # 
