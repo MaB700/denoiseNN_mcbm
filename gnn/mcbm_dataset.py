@@ -54,7 +54,7 @@ class MyDataset(InMemoryDataset):
             data = T.ToUndirected()(data)
             data = T.Distance()(data)
             data = TimeDifference()(data) # might consider sign
-            data = T.RemoveIsolatedNodes()(data)
+            # data = T.RemoveIsolatedNodes()(data)
             # data.pos = None
             # data.t = None
 

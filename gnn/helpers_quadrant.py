@@ -164,21 +164,21 @@ def make_graph_quadrant(index, time, tar, dist):
     edge_index = torch.from_numpy(edge_index).long()
 
     # Edge features
-    # edge_features = np.zeros((edge_index.shape[1], 2))
-    # if n > 1 :
-    #     for i in range(edge_index.shape[1]):
-    #         x0 = x[start_index[i], 1]
-    #         y0 = x[start_index[i], 2]
-    #         x1 = x[end_index[i], 1]
-    #         y1 = x[end_index[i], 2]
-    #         edge_features[i, 0] = math.sqrt(((x1-x0)*31.0)**2 + ((y1-y0)*71)**2)/(dist*1.41422)
-    #         edge_features[i, 1] = abs(x[start_index[i], 0] - x[end_index[i], 0])
+    edge_features = np.zeros((edge_index.shape[1], 2))
+    if n > 1 :
+        for i in range(edge_index.shape[1]):
+            x0 = x[start_index[i], 1]
+            y0 = x[start_index[i], 2]
+            x1 = x[end_index[i], 1]
+            y1 = x[end_index[i], 2]
+            edge_features[i, 0] = math.sqrt(((x1-x0)*31.0)**2 + ((y1-y0)*71)**2)/(dist*1.41422)
+            edge_features[i, 1] = abs(x[start_index[i], 0] - x[end_index[i], 0])
         
-    # edge_features = torch.from_numpy(edge_features).float()
+    edge_features = torch.from_numpy(edge_features).float()
 
     # Labels
     y = np.zeros((n, 1))
     y[:, 0] = tar[index, :][hit_indices]
 
 
-    return Data(x=torch.from_numpy(x).float(), edge_index=edge_index, y=torch.from_numpy(y).float())
+    return Data(x=torch.from_numpy(x).float(), edge_index=edge_index, edge_attr=edge_features, y=torch.from_numpy(y).float())
