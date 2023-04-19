@@ -27,11 +27,11 @@ def scatter_add_attention(encoded_nodes, encoded_edges, edge_list):
     src = encoded_nodes[end]*encoded_edges
     index = start.unsqueeze(-1)
     add_messages = torch.zeros(encoded_nodes.shape, dtype=src.dtype, device=encoded_nodes.device).scatter_add_(0, index.repeat((1,src.shape[1])), src)
-    
+    # mean_message = torch.zeros(encoded_nodes.shape, dtype=src.dtype, device=encoded_nodes.device).scatter_reduce_(0, index.repeat((1,src.shape[1])), src, "mean")
     # denom = torch.zeros(encoded_nodes.shape, dtype=src.dtype, device=encoded_nodes.device).scatter_add_(0, index.repeat((1,src.shape[1])), torch.ones_like(src))
     # mean_messages = add_messages/denom
     
-    # aggr_nodes = torch.cat([add_messages, add_messages], dim=1) # + out_messages
+    # aggr_nodes = torch.cat([add_messages, mean_message], dim=1) # + out_messages
     # aggr_nodes = add_messages # mean_messages
     return add_messages
 

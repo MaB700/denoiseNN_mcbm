@@ -11,12 +11,14 @@ import torch_geometric.transforms as T
 from torch_geometric.transforms import BaseTransform
 
 class MyDataset(InMemoryDataset):
-    def __init__(self, root=None, dataset="train", N=1000, radius = 7.0, max_num_neighbors = 8, reload=False, undirected=True):
+    def __init__(self, root=None, dataset="train", N=1000, radius = 7.0, max_num_neighbors = 8, reload=False, undirected=True, self_loop=False, delta_t = 3.0):
         self.N = N
         self.dataset = dataset
         self.undirected = undirected
         self.radius = radius
         self.max_num_neighbors = max_num_neighbors
+        self.loop = self_loop
+        self.delta_t = delta_t
         file_dir = os.path.dirname(__file__)
         root = os.path.abspath(os.path.dirname(__file__) + "/../data/")
         if reload:
@@ -48,12 +50,12 @@ class MyDataset(InMemoryDataset):
 
         data_list = [self.initial_graph(i, time, tar) for i in range(len(time))]
         
-        for data in data_list: #TODO: are those deep copys? 
-            data = T.RadiusGraph(self.radius, max_num_neighbors=self.max_num_neighbors)(data)
+        for data in data_list:
+            data = T.RadiusGraph(self.radius, max_num_neighbors=self.max_num_neighbors, loop=self.loop)(data)
             data = self.rm_edges(data) # remove edges outside abs time difference [workaround]
             data = T.ToUndirected()(data)
             data = T.Distance()(data)
-            data = TimeDifference()(data) # might consider sign
+            data = TimeDifference(max_value=self.delta_t)(data) #TODO: might consider sign
             # data = T.RemoveIsolatedNodes()(data)
             # data.pos = None
             # data.t = None
@@ -90,10 +92,10 @@ class MyDataset(InMemoryDataset):
                     pos=torch.from_numpy(pos).float(),
                     t=torch.from_numpy(t).float())
 
-    def rm_edges(self, data, delta_t = 3.0):
+    def rm_edges(self, data):
         src_time = torch.index_select(data.t, 0, data.edge_index[0,:]).view(-1)
         target_time = torch.index_select(data.t, 0, data.edge_index[1,:]).view(-1)
-        data.edge_index = data.edge_index[:, torch.abs(src_time - target_time) <= delta_t]
+        data.edge_index = data.edge_index[:, torch.abs(src_time - target_time) <= self.delta_t]
         return data
 
 @functional_transform('timedifference')
@@ -111,16 +113,19 @@ class TimeDifference(BaseTransform):
             attributes will be replaced. (default: :obj:`True`)
     """
     def __init__(self, norm: bool = True, max_value: Optional[float] = None,
-                 cat: bool = True):
+                 cat: bool = True, abs: bool = True):
         self.norm = norm
         self.max = max_value
         self.cat = cat
+        self.abs = abs
 
     def __call__(self, data: Data) -> Data:
         (row, col), time, pseudo = data.edge_index, data.t, data.edge_attr
 
-        dist = torch.abs(time[col] - time[row]).view(-1, 1)
-        # dist = (time[col] - time[row]).view(-1, 1)
+        if self.abs:
+            dist = torch.abs(time[col] - time[row]).view(-1, 1)
+        else:
+            dist = (time[col] - time[row]).view(-1, 1)
         
         if self.norm and dist.numel() > 0:
             dist = dist / (dist.max() if self.max is None else self.max)

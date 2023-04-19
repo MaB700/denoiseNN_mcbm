@@ -87,11 +87,11 @@ def make_graph(index, time, tar, dist):
     return Data(x=torch.from_numpy(x).float(), edge_index=edge_index, edge_attr=edge_features, y=torch.from_numpy(y).float())
 
 
-def MLP(channels, batch_norm=True):
+def MLP(channels, batch_norm=False):
         return Sequential(*[
             Sequential(Linear(channels[i - 1], channels[i]),
-                ReLU(),
-                nn.BatchNorm1d(channels[i]) if batch_norm else nn.Identity)
+                ReLU())
+                # nn.BatchNorm1d(channels[i]) if batch_norm else nn.Identity)
             for i in range(1, len(channels))
         ])
 
@@ -110,25 +110,28 @@ class MyModel(torch.nn.Module):
 class Net(torch.nn.Module):
     def __init__(self, data, hidden_nodes):
         super(Net, self).__init__()
-
+        self.k = 8
+        self.aggr = "max"
         self.node_encoder = nn.Linear(data.x.size(-1), hidden_nodes)
         #self.edge_encoder = nn.Linear(data.edge_attr.size(-1), hidden_nodes)
         
-        self.conv1 = geonn.DynamicEdgeConv(MLP([2*hidden_nodes, hidden_nodes, hidden_nodes]), k=7)
-        self.conv2 = geonn.DynamicEdgeConv(MLP([2*hidden_nodes, hidden_nodes, hidden_nodes]), k=7)
-        # self.conv3 = geonn.DynamicEdgeConv(hidden_nodes, hidden_nodes, k=5)
-        self.conv4 = geonn.DynamicEdgeConv(MLP([2*hidden_nodes, hidden_nodes, 1]), k=7)         
+        self.conv1 = geonn.DynamicEdgeConv(MLP([2*hidden_nodes, hidden_nodes, hidden_nodes]), k=self.k)
+        self.conv2 = geonn.DynamicEdgeConv(MLP([2*hidden_nodes, hidden_nodes, hidden_nodes]), k=self.k)
+        # self.conv3 = geonn.DynamicEdgeConv(MLP([2*hidden_nodes, hidden_nodes, hidden_nodes]), k=self.k, aggr=self.aggr)
+        # self.conv4 = geonn.DynamicEdgeConv(MLP([2*hidden_nodes, hidden_nodes, hidden_nodes]), k=self.k, aggr=self.aggr)
+        self.conv5 = geonn.DynamicEdgeConv(MLP([2*hidden_nodes, hidden_nodes, 1]), k=self.k)         
 
         # self.double()
 
-    def forward(self, x, edge_index):        
+    def forward(self, x, edge_index, batch):        
         x = self.node_encoder(x)
         #edge_attr = self.edge_encoder(edge_attr)
 
-        x = F.relu(self.conv1(x, edge_index))
-        x = F.relu(self.conv2(x, edge_index))
-        # x = x + F.relu(self.conv3(x, edge_index))
-        return torch.sigmoid(self.conv4(x, edge_index))
+        x = F.relu(self.conv1(x, batch))
+        x = F.relu(self.conv2(x, batch))
+        # x = F.relu(self.conv3(x, batch))
+        # x = F.relu(self.conv4(x, batch))
+        return torch.sigmoid(self.conv5(x, batch))
 
 class LogWandb():
     def __init__(self, gt, pred):
